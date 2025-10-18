@@ -362,27 +362,6 @@
 
                 // --- METHODS ---
                 init() {
-                    // Ejecuta el cálculo inicial al cargar la página.
-                    this.calculate();
-
-                    // Ahora, observa todas las propiedades de entrada. Si alguna cambia,
-                    // vuelve a ejecutar el cálculo automáticamente.
-                    const watchedProps = [
-                        'elevation_ft', 
-                        'temperature_c', 
-                        'wind_kts', 
-                        'crosswind_kts', 
-                        'runwaySurface', 
-                        'runwayLength_m', 
-                        'units'
-                    ];
-                    
-                    watchedProps.forEach(prop => {
-                        this.$watch(prop, () => this.calculate());
-                    });
-                },
-
-                init() {
                     // Ejecuta el cálculo inicial al cargar la página. Esto funciona en ambos entornos.
                     this.calculate();
 
