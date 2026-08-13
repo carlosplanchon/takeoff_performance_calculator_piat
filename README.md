@@ -1,6 +1,6 @@
 # Takeoff Performance Calculator - Pipistrel ALPHA Trainer
 
-![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)
 
 An interactive and visual web-based calculator to estimate the takeoff performance of the **Pipistrel ALPHA Trainer (LSA)** aircraft.
 
@@ -147,7 +147,7 @@ Contributions are welcome! If you find a bug, have a suggestion for improvement,
 
 ## 📄 License
 
-This project is distributed under the MIT License. See the `LICENSE` file for more information.
+This project is distributed under the Apache License 2.0. See the `LICENSE` file for more information.
 
 ---
 *Made with ♥️ in Dolores, Soriano, Uruguay.*
