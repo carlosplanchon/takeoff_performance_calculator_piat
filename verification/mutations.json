@@ -1,0 +1,287 @@
+{
+  "schema": 1,
+  "_comment": [
+    "Deliberate defects introduced into the calculator one at a time, to measure",
+    "what the test suite would actually catch. See VERIFICATION.md for the method",
+    "and the results, and run_mutations.py to reproduce them.",
+    "",
+    "Each entry replaces 'find' with 'replace' in the APPLICATION half of",
+    "index.html, never in the tests. The suite writes the handbook figures out a",
+    "second time on purpose, so a naive replace would edit the check along with",
+    "the value it checks and the mutation would go undetected by construction.",
+    "The harness splits the file at the test loader and refuses any 'find' that",
+    "does not match exactly once on the application side.",
+    "",
+    "CATEGORIES",
+    "  constant    a figure taken from the handbook, edited to a plausible wrong one",
+    "  logic       an edit to the arithmetic or to the flow around it",
+    "  permissive  accepts what it should refuse, or stops warning about a reading",
+    "              taken outside the published tables. Written deliberately: a tool",
+    "              that exists to say 'this runway is not long enough' fails",
+    "              dangerously in one direction only.",
+    "",
+    "Adding one is the point. If you can write a defect this set does not cover,",
+    "it belongs here."
+  ],
+  "mutations": [
+    {
+      "id": "C01",
+      "category": "constant",
+      "description": "Base ground roll 170 -> 175 m",
+      "find": "base_lo: { groundRoll: 170",
+      "replace": "base_lo: { groundRoll: 175"
+    },
+    {
+      "id": "C02",
+      "category": "constant",
+      "description": "Base obstacle distance 265 -> 275 m",
+      "find": "groundRoll: 170, obstacle: 265 },",
+      "replace": "groundRoll: 170, obstacle: 275 },"
+    },
+    {
+      "id": "C03",
+      "category": "constant",
+      "description": "Elevation table, 500 m ground roll 213 -> 218",
+      "find": "[500, 213, 316]",
+      "replace": "[500, 218, 316]"
+    },
+    {
+      "id": "C04",
+      "category": "constant",
+      "description": "Elevation table, 1000 m obstacle 395 -> 385",
+      "find": "[1000, 265, 395]",
+      "replace": "[1000, 265, 385]"
+    },
+    {
+      "id": "C05",
+      "category": "constant",
+      "description": "Elevation table, 1500 m ground roll 332 -> 322",
+      "find": "[1500, 332, 433]",
+      "replace": "[1500, 322, 433]"
+    },
+    {
+      "id": "C06",
+      "category": "constant",
+      "description": "Temperature table, 0 C ground roll 140 -> 145",
+      "find": "[0, 140, 240]",
+      "replace": "[0, 145, 240]"
+    },
+    {
+      "id": "C07",
+      "category": "constant",
+      "description": "Temperature table, 15 C ground roll 170 -> 172",
+      "find": "[15, 170, 265]",
+      "replace": "[15, 172, 265]"
+    },
+    {
+      "id": "C08",
+      "category": "constant",
+      "description": "Temperature table, 25 C obstacle 320 -> 330",
+      "find": "[25, 250, 320]",
+      "replace": "[25, 250, 330]"
+    },
+    {
+      "id": "C09",
+      "category": "constant",
+      "description": "Temperature table, 40 C ground roll 317 -> 307",
+      "find": "[40, 317, 455]",
+      "replace": "[40, 307, 455]"
+    },
+    {
+      "id": "C10",
+      "category": "constant",
+      "description": "Wind table, calm ground roll 555 -> 550 ft",
+      "find": "{ kts:  0, gr_ft: 555, obs_ft: 870 }",
+      "replace": "{ kts:  0, gr_ft: 550, obs_ft: 870 }"
+    },
+    {
+      "id": "C11",
+      "category": "constant",
+      "description": "Wind table, calm obstacle 870 -> 880 ft",
+      "find": "{ kts:  0, gr_ft: 555, obs_ft: 870 }",
+      "replace": "{ kts:  0, gr_ft: 555, obs_ft: 880 }"
+    },
+    {
+      "id": "C12",
+      "category": "constant",
+      "description": "Wind table, 6 kt tailwind ground roll 680 -> 670 ft",
+      "find": "{ kts: -6, gr_ft: 680, obs_ft: 1130 }",
+      "replace": "{ kts: -6, gr_ft: 670, obs_ft: 1130 }"
+    },
+    {
+      "id": "C13",
+      "category": "constant",
+      "description": "Wind table, 4 kt headwind ground roll 525 -> 520 ft",
+      "find": "{ kts:  4, gr_ft: 525, obs_ft: 810 }",
+      "replace": "{ kts:  4, gr_ft: 520, obs_ft: 810 }"
+    },
+    {
+      "id": "C14",
+      "category": "constant",
+      "description": "Wind table, 12 kt headwind obstacle 720 -> 730 ft",
+      "find": "{ kts: 12, gr_ft: 480, obs_ft: 720 }",
+      "replace": "{ kts: 12, gr_ft: 480, obs_ft: 730 }"
+    },
+    {
+      "id": "C15",
+      "category": "constant",
+      "description": "Extrapolated 40 kt tailwind ground roll 1400 -> 1300 ft",
+      "find": "{ kts: -40, gr_ft: 1400, obs_ft: 2600 }",
+      "replace": "{ kts: -40, gr_ft: 1300, obs_ft: 2600 }"
+    },
+    {
+      "id": "C16",
+      "category": "constant",
+      "description": "Extrapolated 40 kt headwind obstacle 563 -> 553 ft",
+      "find": "{ kts: 40, gr_ft: 375, obs_ft: 563 }",
+      "replace": "{ kts: 40, gr_ft: 375, obs_ft: 553 }"
+    },
+    {
+      "id": "F01",
+      "category": "constant",
+      "description": "Safety margin 1.10 -> 1.05",
+      "find": "this.breakdown.safetyMargin = 1.10;",
+      "replace": "this.breakdown.safetyMargin = 1.05;"
+    },
+    {
+      "id": "F02",
+      "category": "constant",
+      "description": "Grass surface factor 1.20 -> 1.15",
+      "find": "'grass' ? 1.20 : 1.0",
+      "replace": "'grass' ? 1.15 : 1.0"
+    },
+    {
+      "id": "F03",
+      "category": "constant",
+      "description": "Crosswind penalty 10 % -> 8 % per 5 kts",
+      "find": "(0.10 / 5)",
+      "replace": "(0.08 / 5)"
+    },
+    {
+      "id": "F04",
+      "category": "constant",
+      "description": "Crosswind penalty per 5 kts -> per 10 kts",
+      "find": "(0.10 / 5)",
+      "replace": "(0.10 / 10)"
+    },
+    {
+      "id": "L01",
+      "category": "constant",
+      "description": "POH wind table lower limit -6 -> -8 kts",
+      "find": "POH_LIMIT_MIN: -6,",
+      "replace": "POH_LIMIT_MIN: -8,"
+    },
+    {
+      "id": "L02",
+      "category": "constant",
+      "description": "POH wind table upper limit 12 -> 15 kts",
+      "find": "POH_LIMIT_MAX: 12,",
+      "replace": "POH_LIMIT_MAX: 15,"
+    },
+    {
+      "id": "G01",
+      "category": "logic",
+      "description": "Crosswind rounded down instead of up",
+      "find": "Math.ceil(this.crosswind_kts)",
+      "replace": "Math.floor(this.crosswind_kts)"
+    },
+    {
+      "id": "G02",
+      "category": "logic",
+      "description": "Obstacle distance uses the ground roll wind factor",
+      "find": "this.breakdown.windFactor_Obs;",
+      "replace": "this.breakdown.windFactor_Gr;"
+    },
+    {
+      "id": "G03",
+      "category": "logic",
+      "description": "Runway margin sign inverted",
+      "find": "return this.runwayLength_m - this.results.obstacle;",
+      "replace": "return this.results.obstacle - this.runwayLength_m;"
+    },
+    {
+      "id": "G04",
+      "category": "logic",
+      "description": "Runway margin measured against the ground roll, not the obstacle",
+      "find": "return this.runwayLength_m - this.results.obstacle;",
+      "replace": "return this.runwayLength_m - this.results.groundRoll;"
+    },
+    {
+      "id": "G05",
+      "category": "logic",
+      "description": "Feet to metres factor 0.3048 -> 0.348 in the calculation",
+      "find": "const elevation_m = this.elevation_ft * 0.3048;\n\n                    // 0) Validate inputs",
+      "replace": "const elevation_m = this.elevation_ft * 0.348;\n\n                    // 0) Validate inputs"
+    },
+    {
+      "id": "G07",
+      "category": "logic",
+      "description": "Feet to metres factor wrong in the validity check only",
+      "find": "if (!this.isReady) return 'pending';\n                    const elevation_m = this.elevation_ft * 0.3048;",
+      "replace": "if (!this.isReady) return 'pending';\n                    const elevation_m = this.elevation_ft * 0.348;"
+    },
+    {
+      "id": "G06",
+      "category": "logic",
+      "description": "Wind direction converted with the wrong half turn",
+      "find": "const windRad = this.windDirection * (Math.PI / 180);",
+      "replace": "const windRad = this.windDirection * (Math.PI / 360);"
+    },
+    {
+      "id": "P01",
+      "category": "permissive",
+      "description": "Temperature out of table no longer invalidates",
+      "find": "if (tempOob || elevOob) return 'invalid';",
+      "replace": "if (elevOob) return 'invalid';"
+    },
+    {
+      "id": "P02",
+      "category": "permissive",
+      "description": "Out of table check removed outright",
+      "find": "if (tempOob || elevOob) return 'invalid';",
+      "replace": ""
+    },
+    {
+      "id": "P03",
+      "category": "permissive",
+      "description": "Extrapolated wind no longer flagged",
+      "find": "if (this.wind_kts < this.POH_LIMIT_MIN || this.wind_kts > this.POH_LIMIT_MAX) return 'extrapolated';",
+      "replace": ""
+    },
+    {
+      "id": "P04",
+      "category": "permissive",
+      "description": "Extrapolated flagged on the tailwind side only",
+      "find": "if (this.wind_kts < this.POH_LIMIT_MIN || this.wind_kts > this.POH_LIMIT_MAX) return 'extrapolated';",
+      "replace": "if (this.wind_kts < this.POH_LIMIT_MIN) return 'extrapolated';"
+    },
+    {
+      "id": "P05",
+      "category": "permissive",
+      "description": "A runway of zero length counts as ready",
+      "find": "Number.isFinite(this.runwayLength_m) && this.runwayLength_m > 0",
+      "replace": "Number.isFinite(this.runwayLength_m)"
+    },
+    {
+      "id": "P06",
+      "category": "permissive",
+      "description": "Temperature no longer required to be ready",
+      "find": "&& Number.isFinite(this.temperature_c)\n",
+      "replace": ""
+    },
+    {
+      "id": "P07",
+      "category": "permissive",
+      "description": "Runway margin reported even on an invalid calculation",
+      "find": "if (!this.isReady || this.validity === 'invalid') return null;",
+      "replace": "if (!this.isReady) return null;"
+    },
+    {
+      "id": "P08",
+      "category": "permissive",
+      "description": "Negative wind speed no longer counts as pending",
+      "find": "if (!Number.isFinite(this.windSpeed_total) || this.windSpeed_total < 0) return true;",
+      "replace": "if (!Number.isFinite(this.windSpeed_total)) return true;"
+    }
+  ]
+}

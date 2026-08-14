@@ -1,0 +1,1926 @@
+<!DOCTYPE html>
+<html lang="es" x-data="takeoffCalculator()" x-bind:lang="lang">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title x-text="t('page_title')"></title>
+    <link rel="icon" type="image/png" href="assets/light_aircraft_favicon.png">
+    <link rel="stylesheet" href="assets/tailwind.css?v=07a799e7">
+    <!-- Alpine JS (v3.15.12 pinned, served locally so the app works offline) -->
+    <script defer src="assets/alpinejs-3.15.12.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        body { scroll-behavior: smooth; }
+        /* ~44px touch targets and 28px slider thumbs for finger use (preflight from a phone) */
+        #main-app input[type="number"], #main-app select { min-height: 44px; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 28px; height: 28px; background: #2563eb; cursor: pointer; border-radius: 50%; margin-top: -10px; }
+        input[type="range"]::-moz-range-thumb { width: 28px; height: 28px; background: #2563eb; cursor: pointer; border-radius: 50%; }
+        .runway-centerline { background-image: repeating-linear-gradient(90deg, white, white 20px, transparent 20px, transparent 40px); }
+        /* QUnit styling to blend in */
+        #qunit { margin-top: 2rem; padding: 1.5rem; background-color: #f8fafc; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        #qunit-header { background-color: #e0e7ff; border-bottom: 2px solid #c7d2fe; }
+        #qunit-testrunner-toolbar { background-color: #eef2ff; }
+</style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800">
+
+    <div id="main-app" class="container mx-auto p-4 md:p-8">
+
+        <!-- Language Switcher -->
+        <div class="flex justify-end mb-4">
+            <div class="flex space-x-1 rounded-lg bg-gray-200 p-1">
+                <button @click="setLang('es')" :class="lang === 'es' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'" class="px-3 py-1 text-sm font-semibold rounded-md transition-colors">ES</button>
+                <button @click="setLang('en')" :class="lang === 'en' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'" class="px-3 py-1 text-sm font-semibold rounded-md transition-colors">EN</button>
+            </div>
+        </div>
+
+        <div class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900" x-text="t('main_title')"></h1>
+            <p class="text-xl text-gray-600 mt-1" x-text="t('subtitle')"></p>
+        </div>
+
+        <!-- STATUS SUMMARY: persistent takeoff state. Sticky on all screen sizes. -->
+        <div class="sticky top-0 z-20 mb-6">
+            <div class="bg-white rounded-lg shadow border border-gray-200 p-3">
+                <div x-show="!isReady" class="text-center text-sm font-bold text-red-600 py-1" x-text="t('setup_prompt')"></div>
+                <div x-show="isReady" class="grid grid-cols-3 md:grid-cols-5 gap-2 text-center items-center" x-cloak>
+                    <div>
+                        <div class="text-xs text-gray-500" x-text="t('sum_ground_roll')"></div>
+                        <div class="text-sm font-bold" :class="validity === 'invalid' ? 'text-gray-400' : 'text-slate-800'" x-text="validity === 'invalid' ? '---' : format(results.groundRoll)"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-500" x-text="t('sum_obstacle')"></div>
+                        <div class="text-sm font-bold" :class="validity === 'invalid' ? 'text-gray-400' : 'text-slate-800'" x-text="validity === 'invalid' ? '---' : format(results.obstacle)"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-500" x-text="t('sum_available')"></div>
+                        <div class="text-sm font-bold text-slate-800" x-text="format(runwayLength_m)"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-500" x-text="t('sum_margin')"></div>
+                        <div class="text-sm font-bold" :class="margin_m !== null && margin_m < 0 ? 'text-red-600' : 'text-slate-800'" x-text="formatSigned(margin_m)"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-500" x-text="t('sum_status')"></div>
+                        <span class="inline-flex items-center gap-1.5 text-xs font-bold" :class="validityTextClass"><span class="w-2 h-2 rounded-full shrink-0" :class="validityDotClass"></span><span x-text="validityLabel"></span></span>
+                    </div>
+                </div>
+                <!-- Data age clock + reset: appears once something has been entered -->
+                <div x-show="savedAt !== null" class="mt-2 pt-2 border-t border-gray-100 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs" x-cloak>
+                    <span class="flex items-center gap-1" :class="dataAgeClass">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span x-text="dataAge"></span>
+                    </span>
+                    <button @click="reset()" class="font-bold text-red-600 underline px-2 py-1" x-text="t('reset_button')"></button>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+            <!-- Inputs column -->
+            <div class="bg-white p-6 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-bold mb-6 border-b pb-3" x-text="t('inputs_title')"></h2>
+
+                <!-- Units and available runway -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6">
+                    <div class="mb-6 md:col-span-2"><label class="block font-semibold mb-2" x-text="t('units_label_long')"></label><div class="flex space-x-2"><button @click="units = 'metric'" :class="{'bg-blue-600 text-white': units === 'metric', 'bg-gray-200': units !== 'metric'}" class="flex-1 py-2.5 px-4 rounded-lg transition" x-text="t('metric_button')"></button><button @click="units = 'imperial'" :class="{'bg-blue-600 text-white': units === 'imperial', 'bg-gray-200': units !== 'imperial'}" class="flex-1 py-2.5 px-4 rounded-lg transition" x-text="t('imperial_button')"></button></div></div>
+                    <div class="mb-6 md:col-span-2"><label for="runwayLength" class="block font-semibold mb-2" x-text="t('runway_length_label_long')"></label><div class="flex items-center"><input type="number" id="runwayLength" x-model.number="runwayLength" class="w-full p-2 border border-gray-300 rounded-md"><span class="ml-2 font-semibold text-gray-600" x-text="units === 'metric' ? 'm' : 'ft'"></span></div></div>
+                </div>
+
+                <!-- Wind & runway orientation input -->
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-6">
+                    <h3 class="font-bold text-gray-700 mb-4 flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg><span x-text="t('wind_calc_title')"></span></h3>
+
+                    <!-- items-end plus always-rendered hint lines: the inputs stay aligned
+                         even when one label wraps to more lines than the other -->
+                    <div class="grid grid-cols-2 gap-4 items-end">
+                        <div>
+                            <label class="block text-sm font-semibold mb-1" x-text="t('runway_heading_label')"></label>
+                            <input type="number" x-model.number="runwayHeading" min="0" max="360" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" placeholder="0-360">
+                            <!-- Typing 36 instead of 360 shows 'Pista 04' and flags the mistake -->
+                            <p class="text-xs text-gray-500 mt-1" x-text="runwayDesignator !== '' ? t('runway_hint', { d: runwayDesignator, h: runwayHeading }) : '\u00a0'"></p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-1" x-text="t('wind_direction_label')"></label>
+                            <input type="number" x-model.number="windDirection" min="0" max="360" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500" placeholder="0-360">
+                            <p class="text-xs text-gray-500 mt-1" x-text="t('wind_direction_hint')"></p>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <label class="block text-sm font-semibold mb-1" x-text="t('wind_speed_label')"></label>
+                        <div class="flex items-center space-x-3">
+                            <input type="range" x-model.number="windSpeed_total" min="0" max="40" step="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                            <div class="flex items-center w-28">
+                                <input type="number" x-model.number="windSpeed_total" min="0" max="50" class="w-20 p-1 text-center font-medium border border-gray-300 rounded-md">
+                                <span class="ml-1 text-sm font-semibold text-gray-500">kts</span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1" x-text="windRangeHint"></p>
+                    </div>
+
+                    <!-- Computed Components Display -->
+                    <!-- The dangerous condition is the headline: with tailwind the cell flips label and turns red -->
+                    <div class="mt-4 pt-3 border-t border-gray-200 grid grid-cols-2 gap-2 text-sm">
+                        <div class="p-2 rounded border text-center" :class="wind_kts < 0 ? 'bg-red-50 border-red-300' : 'bg-white'">
+                            <span class="block text-xs uppercase" :class="wind_kts < 0 ? 'text-red-600 font-bold' : 'text-gray-500'" x-text="wind_kts < 0 ? t('comp_tailwind') : t('comp_headwind')"></span>
+                            <span class="font-bold text-lg" :class="wind_kts < 0 ? 'text-red-600' : (wind_kts > 0 ? 'text-blue-600' : 'text-gray-700')" x-text="windPending ? '---' : Math.abs(wind_kts).toFixed(1) + ' kts'"></span>
+                            <span class="block text-xs text-gray-500" x-show="windPending" x-text="t('wind_pending_hint')"></span>
+                        </div>
+                        <div class="p-2 rounded border text-center" :class="crosswind_kts > 18 ? 'bg-red-50 border-red-300' : 'bg-white'">
+                            <span class="block text-xs text-gray-500 uppercase" x-text="t('comp_crosswind')"></span>
+                            <span class="font-bold text-lg" :class="crosswind_kts > 18 ? 'text-red-600' : 'text-gray-800'" x-text="windPending ? '---' : crosswind_kts.toFixed(1) + ' kts'"></span>
+                            <span class="block text-xs text-gray-500" x-show="crosswind_from !== null" x-text="crosswind_from === 'left' ? t('comp_from_left') : t('comp_from_right')"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input sections with number fields -->
+                <div class="mb-6">
+                    <label class="block font-semibold mb-2" x-text="t('elevation_label')"></label>
+                    <!-- :value + @input instead of x-model: while the state is null (pending)
+                         the thumb parks at 0 without pretending a value was entered -->
+                    <input type="range" :value="Number.isFinite(elevation_ft) ? elevation_ft : 0" @input="elevation_ft = $event.target.valueAsNumber" min="0" max="5000" step="50" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <div class="flex items-center justify-center mt-2 space-x-2">
+                        <input type="number" x-model.number="elevation_display" class="w-28 p-1 text-center font-medium border border-gray-300 rounded-md">
+                        <span class="font-semibold text-gray-600 w-4" x-text="units === 'metric' ? 'm' : 'ft'"></span>
+                    </div>
+                    <p class="text-xs text-gray-500 text-center mt-1" x-text="elevRangeHint"></p>
+                </div>
+                <div class="mb-6">
+                    <label class="block font-semibold mb-2" x-text="t('temperature_label')"></label>
+                    <!-- Same :value + @input pattern: pending temperature parks the thumb at 15 °C
+                         (ISA) but the state stays null until the user actually sets it -->
+                    <input type="range" :value="Number.isFinite(temperature_c) ? temperature_c : 15" @input="temperature_c = $event.target.valueAsNumber" min="0" max="45" step="1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                    <div class="flex items-center justify-center mt-2 space-x-2">
+                        <input type="number" x-model.number="temperature_display" class="w-28 p-1 text-center font-medium border border-gray-300 rounded-md">
+                        <span class="font-semibold text-gray-600 w-4" x-text="units === 'metric' ? '°C' : '°F'"></span>
+                    </div>
+                    <p class="text-xs text-gray-500 text-center mt-1" x-text="tempRangeHint"></p>
+                </div>
+
+                <div><label class="block font-semibold mb-2" x-text="t('surface_label')"></label><div class="flex space-x-2"><button @click="runwaySurface = 'paved'" :class="{'bg-blue-600 text-white': runwaySurface === 'paved', 'bg-gray-200': runwaySurface !== 'paved'}" class="flex-1 py-2.5 px-4 rounded-lg transition" x-text="t('surface_paved')"></button><button @click="runwaySurface = 'grass'" :class="{'bg-blue-600 text-white': runwaySurface === 'grass', 'bg-gray-200': runwaySurface !== 'grass'}" class="flex-1 py-2.5 px-4 rounded-lg transition" x-text="t('surface_grass')"></button></div></div>
+            </div>
+
+            <!-- Results column: sticky on desktop so distances follow while editing conditions -->
+            <div class="bg-blue-50 p-6 rounded-xl shadow-lg border-2 border-blue-200 lg:sticky lg:top-20 self-start">
+                <div class="flex items-center justify-between gap-2 mb-6 border-b-2 border-blue-200 pb-3">
+                    <h2 class="text-2xl font-bold text-blue-900" x-text="t('results_title')"></h2>
+                    <!-- Hidden while pending: the setup prompt below already says it;
+                         'pending' belongs to data entry, validity belongs to the result -->
+                    <span x-show="validity !== 'pending'" x-cloak class="inline-flex items-center gap-1.5 text-xs font-bold whitespace-nowrap" :class="validityTextClass"><span class="w-2 h-2 rounded-full shrink-0" :class="validityDotClass"></span><span x-text="validityLabel"></span></span>
+                </div>
+                <div x-show="!isReady" class="bg-white p-4 rounded-lg text-center text-sm font-bold text-red-600" x-text="t('setup_prompt')"></div>
+                <div x-show="isReady" class="space-y-6">
+                    <div class="bg-white p-4 rounded-lg">
+                        <p class="text-lg font-semibold text-gray-700" x-text="t('ground_roll_label')"></p>
+                        <div class="flex justify-end items-baseline space-x-2 mt-1"><span class="text-5xl font-bold" :class="validity === 'invalid' ? 'text-gray-400' : (validity === 'extrapolated' ? 'text-amber-600' : 'text-blue-700')" x-text="validity === 'invalid' ? '---' : (units === 'metric' ? results.groundRoll.toFixed(0) : (results.groundRoll / 0.3048).toFixed(0))"></span><span class="text-2xl text-gray-500" x-show="validity !== 'invalid'" x-text="units === 'metric' ? 'm' : 'ft'"></span></div>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg">
+                        <p class="text-lg font-semibold text-gray-700" x-text="t('obstacle_dist_label')"></p>
+                        <div class="flex justify-end items-baseline space-x-2 mt-1"><span class="text-5xl font-bold" :class="validity === 'invalid' ? 'text-gray-400' : (validity === 'extrapolated' ? 'text-amber-600' : 'text-blue-700')" x-text="validity === 'invalid' ? '---' : (units === 'metric' ? results.obstacle.toFixed(0) : (results.obstacle / 0.3048).toFixed(0))"></span><span class="text-2xl text-gray-500" x-show="validity !== 'invalid'" x-text="units === 'metric' ? 'm' : 'ft'"></span></div>
+                    </div>
+                </div>
+                <div class="mt-8 space-y-3">
+                    <!-- Short runway alert (x-if so the x-html below never evaluates on a null runwayLength_m) -->
+                    <template x-if="isReady">
+                    <div x-show="validity !== 'invalid' && results.obstacle > runwayLength_m" class="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-r shadow-sm" role="alert" x-cloak>
+                        <div class="flex items-center">
+                            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            <p class="text-lg font-bold" x-text="t('danger_short_runway_title')"></p>
+                        </div>
+                        <p class="mt-1 ml-8 text-sm opacity-90" x-html="t('danger_short_runway_desc', {
+                            req: `<span class='font-bold underline'>${units === 'metric' ? results.obstacle.toFixed(0) + ' m' : (results.obstacle / 0.3048).toFixed(0) + ' ft'}</span>`,
+                            avail: `<span class='font-bold underline'>${units === 'metric' ? runwayLength_m.toFixed(0) + ' m' : (runwayLength_m / 0.3048).toFixed(0) + ' ft'}</span>`
+                        })"></p>
+                    </div>
+                    </template>
+                    <!-- Warnings Area -->
+                    <div x-show="warnings.length > 0" class="space-y-3" x-cloak>
+                        <template x-for="warning in warnings" :key="warning">
+                             <div class="bg-orange-100 border-l-4 border-orange-500 text-orange-800 p-4 rounded" role="alert">
+                                <p class="font-bold" x-text="t('warning_title')"></p>
+                                <p x-html="warning"></p>
+                            </div>
+                        </template>
+                    </div>
+                    <div x-show="crosswind_kts > 18" class="bg-red-100 border-l-4 border-red-500 text-red-800 p-4 rounded" role="alert" x-cloak>
+                        <p class="font-bold" x-text="t('warning_title')"></p>
+                        <p x-text="t('crosswind_warning', {speed: crosswind_kts.toFixed(1)})"></p>
+                    </div>
+                    <!-- Tailwind Warning if calculated -->
+                     <div x-show="wind_kts < 0" class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded" role="alert" x-cloak>
+                        <p class="font-bold" x-text="t('warning_title')"></p>
+                        <p x-text="t('tailwind_warning', {speed: Math.abs(wind_kts).toFixed(1)})"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHART SECTION (hidden until the runway data is filled in) -->
+        <!-- relative z-0: contains the inner z-10/z-20/z-30 markers in their own stacking
+             context so they never paint over the sticky summary strip (z-20) while scrolling -->
+        <div class="relative z-0 mt-8 bg-white p-6 rounded-xl shadow-lg border border-gray-100" x-show="isReady" x-cloak>
+
+            <h2 class="text-xl font-bold mb-6 text-gray-800 text-center" x-text="t('graphic_title')"></h2>
+
+            <!-- Invalid calculation: hide the result markers (values and positions come from
+                 table-edge clamped results) and dim the rest of the drawing -->
+            <div class="relative">
+            <div x-show="validity === 'invalid'" class="absolute inset-0 z-30 flex items-center justify-center" x-cloak>
+                <span class="inline-flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded bg-white shadow text-red-700"><span class="w-2 h-2 rounded-full bg-red-500 shrink-0"></span><span x-text="t('validity_invalid')"></span></span>
+            </div>
+
+            <!-- Chart container -->
+            <div class="relative w-full h-48 select-none" :class="validity === 'invalid' ? 'opacity-30 pointer-events-none' : ''">
+
+                <!-- 1. The runway -->
+                <div class="absolute top-1/2 -translate-y-1/2 left-0 w-full h-12 bg-slate-800 rounded shadow-sm overflow-hidden border-y border-slate-700">
+                    <!-- Dashed centerline -->
+                    <div class="absolute top-1/2 left-2 right-2 h-0 border-t-2 border-dashed border-slate-400 -translate-y-1/2 opacity-50"></div>
+                    <!-- Threshold markings (start) -->
+                    <div class="absolute top-1 bottom-1 left-1 w-2 border-r-2 border-double border-white opacity-40"></div>
+                </div>
+
+                <!-- 2. Marker: runway end (limit visualization) -->
+                <div class="absolute top-0 bottom-0 pointer-events-none" :style="{ left: graphic.runwayEndPercent + '%' }">
+                    <!-- Red vertical line -->
+                    <div class="absolute top-1/2 -translate-y-1/2 h-20 w-1 bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.6)] z-0"></div>
+                    <!-- Bottom label -->
+                    <div class="absolute bottom-4 left-0 transform -translate-x-1/2 flex flex-col items-center">
+                        <span class="text-[10px] uppercase font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100" x-text="t('runway_end_label')"></span>
+                    </div>
+                </div>
+
+                <!-- 3. Element: ground roll (liftoff), label above -->
+                <div x-show="validity !== 'invalid'" class="absolute top-0 bottom-0 transition-all duration-300 ease-out z-10" :style="{ left: graphic.groundRollPercent + '%' }">
+                    <!-- Cyan guide line -->
+                    <div class="absolute top-1/2 bottom-1/2 h-16 -mt-8 w-px bg-cyan-400"></div>
+
+                    <!-- Data badge (top) -->
+                    <div class="absolute top-6 left-1/2 transform -translate-x-1/2 mb-2">
+                        <div class="bg-white border border-cyan-200 text-cyan-700 text-xs font-bold px-2 py-1 rounded shadow-md whitespace-nowrap text-center">
+                            <p class="text-[10px] uppercase" x-text="t('liftoff_label')"></p>
+                            <span class="text-sm" x-text="units === 'metric' ? results.groundRoll.toFixed(0) + ' m' : (results.groundRoll / 0.3048).toFixed(0) + ' ft'"></span>
+                        </div>
+                        <!-- Tooltip arrow -->
+                        <div class="w-2 h-2 bg-white border-r border-b border-cyan-200 transform rotate-45 mx-auto -mt-1.5"></div>
+                    </div>
+                </div>
+
+                <!-- 4. Element: 50 ft obstacle, label below -->
+                <div x-show="validity !== 'invalid'" class="absolute top-0 bottom-0 transition-all duration-300 ease-out z-20" :style="{ left: graphic.obstaclePercent + '%' }">
+                    <!-- Green guide line -->
+                    <div class="absolute top-1/2 bottom-1/2 h-16 -mt-8 w-px bg-emerald-400"></div>
+
+                    <!-- Data badge (bottom) -->
+                    <div class="absolute bottom-6 left-1/2 transform -translate-x-1/2 mt-2">
+                        <!-- Tooltip arrow (above the box) -->
+                        <div class="w-2 h-2 bg-white border-l border-t border-emerald-200 transform rotate-45 mx-auto -mb-1.5 z-10 relative"></div>
+                        <div class="bg-white border border-emerald-200 text-emerald-700 text-xs font-bold px-2 py-1 rounded shadow-md whitespace-nowrap text-center relative z-0">
+                            <p class="text-[10px] uppercase" x-text="t('obstacle_label')"></p>
+                            <span class="text-sm" x-text="units === 'metric' ? results.obstacle.toFixed(0) + ' m' : (results.obstacle / 0.3048).toFixed(0) + ' ft'"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Scale ruler -->
+                <div class="absolute bottom-0 w-full h-4 border-t border-gray-200">
+                    <template x-for="tick in graphic.rulerTicks" :key="tick.label">
+                        <div class="absolute top-0 h-full" :style="{ left: tick.positionPercent + '%' }">
+                            <div class="h-1.5 w-px bg-gray-300 mx-auto"></div>
+                            <span class="absolute top-2 text-[10px] text-gray-400 transform -translate-x-1/2 font-mono" x-text="tick.label"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <!-- CALCULATION BREAKDOWN SECTION (hidden until the runway data is filled in) -->
+        <div class="mt-8 bg-white p-6 rounded-xl shadow-lg" x-show="isReady" x-cloak>
+            <div class="flex items-center justify-center gap-2 mb-4">
+                <h2 class="text-2xl font-bold text-center" x-text="t('breakdown_title')"></h2>
+                <span x-show="validity !== 'ok' && validity !== 'pending'" x-cloak class="inline-flex items-center gap-1.5 text-xs font-bold whitespace-nowrap" :class="validityTextClass"><span class="w-2 h-2 rounded-full shrink-0" :class="validityDotClass"></span><span x-text="validityLabel"></span></span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 text-sm">
+                <!-- Ground roll column -->
+                <div>
+                    <h3 class="font-bold text-lg text-center border-b pb-2 mb-2" x-text="t('ground_roll_label')"></h3>
+                    <div class="space-y-1">
+                        <div class="flex justify-between"><span class="text-gray-600" x-text="t('breakdown_base_dist')"></span> <span x-text="format(breakdown.base_Lo_groundRoll)"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-600" x-text="t('breakdown_temp_dist')"></span> <span x-text="format(breakdown.tempEffect_Lt_groundRoll)"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-600" x-text="t('breakdown_elev_dist')"></span> <span x-text="format(breakdown.elevationEffect_Lh_groundRoll)"></span></div>
+                        <div class="flex justify-between border-t pt-1 mt-1"><span class="font-semibold" x-text="t('breakdown_subtotal1')"></span> <span class="font-semibold" x-text="format(breakdown.elevationEffect_Lh_groundRoll + breakdown.tempEffect_Lt_groundRoll - breakdown.base_Lo_groundRoll)"></span></div>
+                        <div class="flex justify-between" :class="breakdown.safetyMargin > 1 ? 'text-orange-600' : 'text-gray-600'"><span class="text-gray-600" x-text="t('safety_margin')"></span> <span x-text="breakdown.safetyMargin.toFixed(2) + 'x'"></span></div>
+                        <div class="flex justify-between border-t pt-1 mt-1"><span class="font-semibold" x-text="t('breakdown_subtotal_density')"></span> <span class="font-semibold" x-text="format(breakdown.subtotal_density_groundRoll)"></span></div>
+                        <div class="flex justify-between" :class="breakdown.windFactor_Gr === 1 ? 'text-gray-600' : breakdown.windFactor_Gr < 1 ? 'text-green-600' : 'text-red-600'">
+                            <span class="text-gray-600" x-text="t('wind_factor_text')"></span>
+                            <span x-text="breakdown.windFactor_Gr.toFixed(3) + 'x'"></span>
+                        </div>
+                        <div class="flex justify-between" :class="breakdown.surfaceFactor > 1 ? 'text-orange-600' : 'text-gray-600'"><span class="text-gray-600" x-text="t('breakdown_surface_factor')"></span> <span x-text="breakdown.surfaceFactor.toFixed(2) + 'x'"></span></div>
+                        <div class="flex justify-between" :class="breakdown.crosswindFactor > 1 ? 'text-orange-600' : 'text-gray-600'"><span class="text-gray-600" x-text="t('breakdown_crosswind_factor')"></span> <span x-text="breakdown.crosswindFactor.toFixed(2) + 'x'"></span></div>
+                        <div class="flex justify-between text-base font-bold border-t-2 border-black pt-1 mt-2"><span x-text="t('breakdown_total')"></span> <span x-text="format(results.groundRoll)"></span></div>
+                    </div>
+                </div>
+                <!-- Obstacle distance column -->
+                <div>
+                    <h3 class="font-bold text-lg text-center border-b pb-2 mb-2" x-text="t('obstacle_dist_label')"></h3>
+                     <div class="space-y-1">
+                        <div class="flex justify-between"><span class="text-gray-600" x-text="t('breakdown_base_dist')"></span> <span x-text="format(breakdown.base_Lo_obstacle)"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-600" x-text="t('breakdown_temp_dist')"></span> <span x-text="format(breakdown.tempEffect_Lt_obstacle)"></span></div>
+                        <div class="flex justify-between"><span class="text-gray-600" x-text="t('breakdown_elev_dist')"></span> <span x-text="format(breakdown.elevationEffect_Lh_obstacle)"></span></div>
+                        <div class="flex justify-between border-t pt-1 mt-1"><span class="font-semibold" x-text="t('breakdown_subtotal1')"></span> <span class="font-semibold" x-text="format(breakdown.elevationEffect_Lh_obstacle + breakdown.tempEffect_Lt_obstacle - breakdown.base_Lo_obstacle)"></span></div>
+                        <div class="flex justify-between" :class="breakdown.safetyMargin > 1 ? 'text-orange-600' : 'text-gray-600'"><span class="text-gray-600" x-text="t('safety_margin')"></span> <span x-text="breakdown.safetyMargin.toFixed(2) + 'x'"></span></div>
+                        <div class="flex justify-between border-t pt-1 mt-1"><span class="font-semibold" x-text="t('breakdown_subtotal_density')"></span> <span class="font-semibold" x-text="format(breakdown.subtotal_density_obstacle)"></span></div>
+                        <div class="flex justify-between" :class="breakdown.windFactor_Obs === 1 ? 'text-gray-600' : breakdown.windFactor_Obs < 1 ? 'text-green-600' : 'text-red-600'">
+                            <span class="text-gray-600" x-text="t('wind_factor_text')"></span>
+                            <span x-text="breakdown.windFactor_Obs.toFixed(3) + 'x'"></span>
+                        </div>
+                        <div class="flex justify-between" :class="breakdown.surfaceFactor > 1 ? 'text-orange-600' : 'text-gray-600'"><span class="text-gray-600" x-text="t('breakdown_surface_factor')"></span> <span x-text="breakdown.surfaceFactor.toFixed(2) + 'x'"></span></div>
+                        <div class="flex justify-between" :class="breakdown.crosswindFactor > 1 ? 'text-orange-600' : 'text-gray-600'"><span class="text-gray-600" x-text="t('breakdown_crosswind_factor')"></span> <span x-text="breakdown.crosswindFactor.toFixed(2) + 'x'"></span></div>
+                        <div class="flex justify-between text-base font-bold border-t-2 border-black pt-1 mt-2"><span x-text="t('breakdown_total')"></span> <span x-text="format(results.obstacle)"></span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="text-center mt-8 text-sm">
+            <div class="bg-yellow-50 border border-yellow-300 rounded-lg p-4 shadow-sm mb-4 max-w-4xl mx-auto">
+                <p class="text-gray-700 mb-2" x-html="t('footer_disclaimer1')"></p>
+                <p class="text-gray-700" x-html="t('footer_disclaimer5')"></p>
+                <details class="mt-3">
+                    <summary class="cursor-pointer text-gray-700 font-bold underline" x-text="t('footer_more')"></summary>
+                    <div class="mt-3 space-y-2">
+                        <p class="text-gray-700" x-html="t('footer_disclaimer2')"></p>
+                        <p class="text-gray-700" x-html="t('footer_disclaimer3')"></p>
+                        <p class="text-gray-700" x-html="t('footer_disclaimer4')"></p>
+                        <p class="text-gray-700" x-html="t('footer_disclaimer6')"></p>
+                    </div>
+                </details>
+            </div>
+            <p class="text-gray-500" x-text="t('footer_copyright')"></p>
+            <p class="text-gray-500" x-text="t('footer_hosting')"></p>
+        </footer>
+    </div>
+
+    <!-- START: TEST SUITE (conditional) -->
+    <div id="qunit-container" style="display: none;">
+        <div id="qunit" class="container mx-auto"></div>
+        <div id="qunit-fixture"></div>
+    </div>
+    <!-- END: TEST SUITE -->
+
+    <script>
+        function takeoffCalculator() {
+            return {
+                // --- TRANSLATIONS (i18n) ---
+                lang: 'es', // Default language
+                translations: {
+                    es: {
+                        page_title: 'Calculadora de Performance de Despegue - Pipistrel ALPHA Trainer LSA',
+                        main_title: 'Calculadora de Performance de Despegue',
+                        subtitle: 'Pipistrel ALPHA Trainer LSA',
+                        danger_short_runway_title: '¡PELIGRO! PISTA CORTA',
+                        danger_short_runway_desc: 'La distancia requerida ({req}) es MAYOR que la pista disponible ({avail}).',
+                        graphic_title: 'Representación Gráfica',
+                        runway_end_label: 'Fin Pista',
+                        liftoff_label: 'Despegue',
+                        obstacle_label: 'Obstáculo (50ft)',
+                        inputs_title: 'Condiciones de Despegue',
+                        units_label_long: 'Unidades',
+                        metric_button: 'Métrico (m, °C, kts)',
+                        imperial_button: 'Imperial (ft, °F, kts)',
+                        runway_length_label_long: 'Longitud de Pista Disponible',
+
+                        // Status summary
+                        setup_prompt: 'Completá los datos de la pista y las condiciones para calcular las distancias de despegue',
+                        sum_ground_roll: 'Carrera',
+                        sum_obstacle: 'Dist. 50 ft',
+                        sum_available: 'Disponible',
+                        sum_margin: 'Diferencia',
+                        sum_status: 'Validez',
+                        validity_ok: 'Dentro del rango POH',
+                        validity_extrapolated: 'Extrapolado',
+                        validity_invalid: 'Cálculo no válido',
+                        validity_pending: 'Datos incompletos',
+                        reset_button: 'Reiniciar',
+                        age_just_now: 'Ingresaste datos recién',
+                        age_min: 'Ingresaste datos por última vez hace {n} min',
+                        age_hours: 'Ingresaste datos por última vez hace {n} h',
+                        age_day: 'Ingresaste datos por última vez hace {n} día',
+                        age_days: 'Ingresaste datos por última vez hace {n} días',
+
+                        // Wind translations
+                        wind_calc_title: 'Viento y Pista',
+                        runway_heading_label: 'Rumbo de Pista (Mag °)',
+                        runway_hint: 'Pista {d} · rumbo {h}°',
+                        wind_direction_label: 'Dirección del Viento (Mag °)',
+                        wind_direction_hint: 'Desde donde sopla',
+                        wind_speed_label: 'Intensidad del Viento (Total)',
+                        wind_pending_hint: 'Completá los datos de viento',
+                        comp_headwind: 'Viento de Frente',
+                        comp_tailwind: 'Viento de Cola',
+                        comp_crosswind: 'Viento Cruzado',
+                        comp_from_left: 'desde la izquierda',
+                        comp_from_right: 'desde la derecha',
+                        poh_range_label: 'Rango POH: {min} a {max}',
+                        poh_wind_range: 'Tabla POH: {min} a {max} kts (más allá: extrapolado)',
+
+                        elevation_label: 'Elevación de Pista',
+                        temperature_label: 'Temperatura Exterior',
+                        surface_label: 'Superficie de Pista',
+                        surface_paved: 'Asfaltada / Seca',
+                        surface_grass: 'Pasto / Blanda',
+                        results_title: 'Distancias de Despegue Calculadas',
+                        ground_roll_label: 'Carrera de Despegue (Ground Roll)',
+                        obstacle_dist_label: 'Distancia obstáculo 50 ft / 15 m',
+                        warning_title: '¡ADVERTENCIA!',
+                        crosswind_warning: 'El viento cruzado ({speed} kts) excede el máximo demostrado de 18 kts.',
+                        tailwind_warning: 'Despegue con viento de cola ({speed} kts). Aumenta significativamente la distancia.',
+                        warning_temp_oob: 'Temperatura ({temp}) fuera del rango del POH ({min} a {max}). El cálculo no es válido.',
+                        warning_elev_oob: 'Elevación ({elev}) fuera del rango del POH ({min} a {max}). El cálculo no es válido.',
+                        warning_wind_oob: 'Componente de viento ({wind}) fuera de tabla POH ({min} a {max}). Cálculo usando datos extrapolados no certificados.',
+                        breakdown_title: 'Desglose del Cálculo',
+                        breakdown_base_dist: 'Distancia Base (Lo) a 15°C, SL:',
+                        breakdown_temp_dist: 'Distancia por Temperatura (Lt) a SL:',
+                        breakdown_elev_dist: 'Distancia por Elevación (Lh) a 15°C:',
+                        breakdown_subtotal1: 'Subtotal (Lh + Lt - Lo):',
+                        safety_margin: 'x Márgen de Seguridad:',
+                        breakdown_subtotal_density: 'Subtotal por Densidad:',
+                        breakdown_surface_factor: 'x Factor Superficie:',
+                        breakdown_crosswind_factor: 'x Factor Viento Cruzado:',
+                        breakdown_total: 'TOTAL REQUERIDO:',
+                        wind_factor_text: "x Factor Viento (HW/TW):",
+                        footer_more: 'Información y limitaciones',
+                        footer_disclaimer1: 'Esta es una herramienta no oficial de terceros solo para fines de demostración y educación.<br>No debe usarse para planificación de vuelo real ni decisiones operacionales.',
+                        footer_disclaimer2: 'Esta herramienta no está afiliada, patrocinada ni respaldada por Pipistrel o su empresa matriz, Textron Aviation.<br>Pipistrel® y Textron Aviation® son marcas registradas de sus respectivos propietarios.<br>Datos obtenidos del <b>POH-162-00-40-001_A07, Sección 5 - PERFORMANCE DATA</b>.<br>Consulte siempre el Manual de Operación del Piloto (POH) oficial y vigente, así como la documentación de peso y balance vigente y la configuración específica de su aeronave.',
+                        footer_disclaimer3: 'Para preguntas sobre entrenamiento o uso operacional, consulte a un instructor de vuelo debidamente habilitado y calificado para instruir en estos tipos/modelos de aeronaves.<br>El uso de esta herramienta es bajo su propia responsabilidad.',
+                        footer_disclaimer4: 'Los valores de ejemplo usados en los tests automatizados se usan únicamente con fines de verificación de la lógica del código. Esto no constituye certificación ni aprobación para uso operacional.',
+                        footer_disclaimer5: '<b>ADVERTENCIA DE SEGURIDAD</b>: El uso indebido de herramientas de performance de despegue puede contribuir a accidentes que resulten en lesiones graves o muerte, y/o daños a la propiedad.',
+                        footer_disclaimer6: 'Contacto: <a href="mailto:carlosplanchon@cognitialabs.com" class="underline">carlosplanchon@cognitialabs.com</a>',
+                        footer_copyright: 'Copyright © 2025 - Presente, Carlos A. Planchón - Código bajo licencia Apache 2.0.',
+                        footer_hosting: 'Hosteado on-premise en Dolores, Soriano, Uruguay ♥️.'
+                    },
+                    en: {
+                        page_title: 'Takeoff Performance Calculator - Pipistrel ALPHA Trainer LSA',
+                        main_title: 'Takeoff Performance Calculator',
+                        subtitle: 'Pipistrel ALPHA Trainer LSA',
+                        danger_short_runway_title: 'DANGER! SHORT RUNWAY',
+                        danger_short_runway_desc: 'Required distance ({req}) is GREATER than available runway ({avail}).',
+                        graphic_title: 'Graphical Representation',
+                        runway_end_label: 'Runway End',
+                        liftoff_label: 'Liftoff',
+                        obstacle_label: 'Obstacle (50ft)',
+                        inputs_title: 'Takeoff Conditions',
+                        units_label_long: 'Units',
+                        metric_button: 'Metric (m, °C, kts)',
+                        imperial_button: 'Imperial (ft, °F, kts)',
+                        runway_length_label_long: 'Available Runway Length',
+
+                        // Status summary
+                        setup_prompt: 'Fill in the runway data and the conditions to calculate the takeoff distances',
+                        sum_ground_roll: 'Ground roll',
+                        sum_obstacle: '50 ft dist.',
+                        sum_available: 'Available',
+                        sum_margin: 'Margin',
+                        sum_status: 'Validity',
+                        validity_ok: 'Within POH range',
+                        validity_extrapolated: 'Extrapolated',
+                        validity_invalid: 'Calculation not valid',
+                        validity_pending: 'Incomplete data',
+                        reset_button: 'Reset',
+                        age_just_now: 'You entered data just now',
+                        age_min: 'You last entered data {n} min ago',
+                        age_hours: 'You last entered data {n} h ago',
+                        age_day: 'You last entered data {n} day ago',
+                        age_days: 'You last entered data {n} days ago',
+
+                         // Wind translations
+                        wind_calc_title: 'Wind & Runway',
+                        runway_heading_label: 'Runway Heading (Mag °)',
+                        runway_hint: 'Runway {d} · heading {h}°',
+                        wind_direction_label: 'Wind Direction (Mag °)',
+                        wind_direction_hint: 'Blowing from',
+                        wind_speed_label: 'Total Wind Speed',
+                        wind_pending_hint: 'Complete the wind data',
+                        comp_headwind: 'Headwind',
+                        comp_tailwind: 'Tailwind',
+                        comp_crosswind: 'Crosswind',
+                        comp_from_left: 'from the left',
+                        comp_from_right: 'from the right',
+                        poh_range_label: 'POH range: {min} to {max}',
+                        poh_wind_range: 'POH table: {min} to {max} kts (beyond: extrapolated)',
+
+                        elevation_label: 'Runway Elevation',
+                        temperature_label: 'Outside Air Temperature',
+                        surface_label: 'Runway Surface',
+                        surface_paved: 'Paved / Dry',
+                        surface_grass: 'Grass / Soft',
+                        results_title: 'Calculated Takeoff Distances',
+                        ground_roll_label: 'Ground Roll',
+                        obstacle_dist_label: '50 ft / 15 m Obstacle Distance',
+                        warning_title: 'WARNING!',
+                        crosswind_warning: 'Crosswind ({speed} kts) exceeds the demonstrated maximum of 18 kts.',
+                        tailwind_warning: 'Takeoff with tailwind ({speed} kts). Distance increases significantly.',
+                        warning_temp_oob: 'Temperature ({temp}) is outside POH range ({min} to {max}). Calculation is not valid.',
+                        warning_elev_oob: 'Elevation ({elev}) is outside POH range ({min} to {max}). Calculation is not valid.',
+                        warning_wind_oob: 'Wind component ({wind}) outside POH table ({min} to {max}). Calculation using uncertified extrapolated data.',
+                        breakdown_title: 'Calculation Breakdown',
+                        breakdown_base_dist: 'Base Distance (Lo) at 15°C, SL:',
+                        breakdown_temp_dist: 'Distance for Temperature (Lt) at SL:',
+                        breakdown_elev_dist: 'Distance for Elevation (Lh) at 15°C:',
+                        breakdown_subtotal1: 'Subtotal (Lh + Lt - Lo):',
+                        safety_margin: 'x Safety Margin:',
+                        breakdown_subtotal_density: 'Subtotal for Density:',
+                        breakdown_surface_factor: 'x Surface Factor:',
+                        breakdown_crosswind_factor: 'x Crosswind Factor:',
+                        breakdown_total: 'TOTAL REQUIRED:',
+                        wind_factor_text: "x Wind Factor (HW/TW):",
+                        footer_more: 'Information & limitations',
+                        footer_disclaimer1: 'This is an unofficial, third-party tool for demonstration and educational use only.<br>Do not use it for real-world flight planning or operational decisions.',
+                        footer_disclaimer2: 'This tool is not affiliated with, sponsored by, or endorsed by Pipistrel or its parent company, Textron Aviation.<br>Pipistrel® and Textron Aviation® are trademarks of their respective owners.<br>Data sourced from <b>POH-162-00-40-001_A07, Section 5 - PERFORMANCE DATA</b>.<br>Always consult the current, official Pilot\'s Operating Handbook (POH), as well as the current weight and balance documentation and specific configuration of your aircraft.',
+                        footer_disclaimer3: 'For questions about training or operational use, consult a flight instructor appropriately rated and qualified to instruct in these aircraft types/models.<br>Use at your own risk.',
+                        footer_disclaimer4: 'Example values used in automated tests are for code logic verification purposes only. This does not constitute certification or approval for operational use.',
+                        footer_disclaimer5: '<b>SAFETY WARNING</b>: Misuse of takeoff performance tools can contribute to accidents resulting in serious injury or death, and/or property damage.',
+                        footer_disclaimer6: 'Contact: <a href="mailto:carlosplanchon@cognitialabs.com" class="underline">carlosplanchon@cognitialabs.com</a>',
+                        footer_copyright: 'Copyright © 2025 - Present, Carlos A. Planchón - Code under the Apache 2.0 license.',
+                        footer_hosting: 'Hosted on-premise in Dolores, Soriano, Uruguay ♥️.'
+                    }
+                },
+
+                // --- POH DATA (all in meters except wind table which is in FT as per source) ---
+                // Table Source: POH 5.3 Takeoff Performance (converted to factors relative to 0 kts)
+                // kts: headwind (+), tailwind (-)
+                windData: [
+                    // EXTRAPOLATED (aggressive slope to penalize extreme tailwind)
+                    { kts: -40, gr_ft: 1400, obs_ft: 2600 },
+
+                    // POH DATA (original rows)
+                    { kts: -6, gr_ft: 680, obs_ft: 1130 },
+                    { kts: -4, gr_ft: 645, obs_ft: 1065 },
+                    { kts: -2, gr_ft: 605, obs_ft: 965 },
+                    { kts:  0, gr_ft: 555, obs_ft: 870 },
+                    { kts:  4, gr_ft: 525, obs_ft: 810 },
+                    { kts:  8, gr_ft: 495, obs_ft: 760 },
+                    { kts: 12, gr_ft: 480, obs_ft: 720 },
+
+                    // EXTRAPOLATED (headwind). The ground roll follows the last POH slope
+                    // (-3.75 ft/kt from +8 to +12). The obstacle column does NOT follow its
+                    // own -10 ft/kt slope: two straight lines with different absolute slopes
+                    // cross, and this pair crossed at about +29 kts, which made the 50 ft
+                    // distance come out SHORTER than the takeoff run (25 °C at sea level with
+                    // 40 kts of headwind read 178 m to the obstacle against a 186 m ground
+                    // roll). Beyond the table the obstacle column keeps the +12 kts POH ratio
+                    // instead: 375 * (720/480) = 562.5, rounded up. Holding the ratio
+                    // understates how much a headwind helps to clear the obstacle, which is
+                    // the conservative direction (more distance required).
+                    { kts: 40, gr_ft: 375, obs_ft: 563 }
+                ],
+
+                // Official POH wind-table limits in kts; rows beyond these are extrapolated
+                POH_LIMIT_MIN: -6,
+                POH_LIMIT_MAX: 12,
+
+                // --- PERSISTENCE (localStorage) ---
+                STORAGE_KEY: 'flight_tools_takeoff_v1',
+                savedAt: null,        // timestamp of the last real edit (drives the age clock)
+                now: Date.now(),      // ticked by init() so the age label re-renders
+                _suppressSave: false, // reset() assignments must not re-save via the watchers
+
+                // --- INPUTS & STATE ---
+                // Runway data AND conditions start empty on purpose: no silently-valid
+                // defaults (a preloaded 15 °C looks confirmed without being confirmed).
+                units: 'metric',
+                runwayLength_m: null,
+                elevation_ft: null,
+                temperature_c: null,
+
+                // Wind inputs
+                runwayHeading: null,
+                windDirection: null,
+                windSpeed_total: 0,
+
+                // Computed internally
+                wind_kts: 0,
+                crosswind_kts: 0,
+                crosswind_from: null,
+
+                runwaySurface: null,
+                warnings: [],
+
+                // Getter/Setters for runway length with unit conversion ---
+                get runwayLength() {
+                    if (!Number.isFinite(this.runwayLength_m)) return '';
+                    return this.units === 'metric' ? parseFloat(this.runwayLength_m.toFixed(0)) : parseFloat((this.runwayLength_m / 0.3048).toFixed(0));
+                },
+                set runwayLength(value) {
+                    if (!Number.isFinite(value)) { this.runwayLength_m = null; return; }
+                    this.runwayLength_m = this.units === 'metric' ? value : value * 0.3048;
+                },
+
+                // Getter/Setters for display values with unit conversion ---
+                get elevation_display() {
+                    if (!Number.isFinite(this.elevation_ft)) return '';
+                    return this.units === 'metric' ? Math.round(this.elevation_ft * 0.3048) : this.elevation_ft;
+                },
+                set elevation_display(value) {
+                    if (!Number.isFinite(value)) { this.elevation_ft = null; return; }
+                    this.elevation_ft = this.units === 'metric' ? value / 0.3048 : value;
+                },
+                get temperature_display() {
+                    if (!Number.isFinite(this.temperature_c)) return '';
+                    return this.units === 'metric' ? this.temperature_c : Math.round(this.temperature_c * 9/5 + 32);
+                },
+                set temperature_display(value) {
+                    if (!Number.isFinite(value)) { this.temperature_c = null; return; }
+                    this.temperature_c = this.units === 'metric' ? value : (value - 32) * 5/9;
+                },
+
+                // --- READINESS & VALIDITY ---
+                // Shared by isReady, the wind components and the wind cells display
+                validDeg(v) { return Number.isFinite(v) && v >= 0 && v <= 360; },
+                // Every input must be present and sane: headings inside 0-360, wind not
+                // negative, temperature and elevation entered. Wind direction is only
+                // required once there is wind to resolve.
+                get isReady() {
+                    return Number.isFinite(this.runwayLength_m) && this.runwayLength_m > 0
+                        && this.validDeg(this.runwayHeading)
+                        && this.runwaySurface !== null
+                        && Number.isFinite(this.temperature_c)
+                        && Number.isFinite(this.elevation_ft)
+                        && Number.isFinite(this.windSpeed_total) && this.windSpeed_total >= 0
+                        && (this.windSpeed_total === 0 || this.validDeg(this.windDirection));
+                },
+                get windPending() {
+                    // Cleared or negative wind speed is pending too (calm 0 is a valid value)
+                    if (!Number.isFinite(this.windSpeed_total) || this.windSpeed_total < 0) return true;
+                    return this.windSpeed_total > 0 && (!this.validDeg(this.windDirection) || !this.validDeg(this.runwayHeading));
+                },
+                // 'pending' | 'invalid' | 'extrapolated' | 'ok'
+                // invalid: temp/elevation beyond the POH tables (interpolate() clamps to the
+                // table edge there, so the numbers would look precise while being wrong).
+                get validity() {
+                    if (!this.isReady) return 'pending';
+                    const elevation_m = this.elevation_ft * 0.3048;
+                    const tempOob = this.temperature_c < this.tempData[0][0] || this.temperature_c > this.tempData[this.tempData.length - 1][0];
+                    const elevOob = elevation_m < this.elevationData[0][0] || elevation_m > this.elevationData[this.elevationData.length - 1][0];
+                    if (tempOob || elevOob) return 'invalid';
+                    if (this.wind_kts < this.POH_LIMIT_MIN || this.wind_kts > this.POH_LIMIT_MAX) return 'extrapolated';
+                    return 'ok';
+                },
+                get validityLabel() {
+                    const keys = { ok: 'validity_ok', extrapolated: 'validity_extrapolated', invalid: 'validity_invalid', pending: 'validity_pending' };
+                    return this.t(keys[this.validity]);
+                },
+                // Annunciator (dot + text) colors, same visual language as the W&B
+                // results table. The pending entries never display (the chips hide
+                // while pending); they only keep hidden bindings evaluating safely.
+                get validityTextClass() {
+                    return {
+                        ok: 'text-green-700',
+                        extrapolated: 'text-amber-600',
+                        invalid: 'text-red-700',
+                        pending: 'text-gray-500',
+                    }[this.validity];
+                },
+                get validityDotClass() {
+                    return {
+                        ok: 'bg-green-500',
+                        extrapolated: 'bg-amber-500',
+                        invalid: 'bg-red-500',
+                        pending: 'bg-gray-400',
+                    }[this.validity];
+                },
+                get margin_m() {
+                    if (!this.isReady || this.validity === 'invalid') return null;
+                    return this.runwayLength_m - this.results.obstacle;
+                },
+                // '36' for 360/0 degrees, '09' for 90... Typing 36 instead of 360 shows
+                // 'Pista 04', which flags the mistake immediately.
+                get runwayDesignator() {
+                    if (!Number.isFinite(this.runwayHeading)) return '';
+                    let n = Math.round((this.runwayHeading % 360) / 10);
+                    if (n === 0) n = 36;
+                    return String(n).padStart(2, '0');
+                },
+
+                // --- POH RANGE HINTS (derived from the tables, shown next to each input) ---
+                get tempRangeHint() {
+                    const min = this.tempData[0][0], max = this.tempData[this.tempData.length - 1][0];
+                    const fmt = c => this.units === 'metric' ? `${c} °C` : `${Math.round(c * 9/5 + 32)} °F`;
+                    return this.t('poh_range_label', { min: fmt(min), max: fmt(max) });
+                },
+                get elevRangeHint() {
+                    const min = this.elevationData[0][0], max = this.elevationData[this.elevationData.length - 1][0];
+                    const fmt = m => this.units === 'metric' ? `${m} m` : `${Math.round(m / 0.3048)} ft`;
+                    return this.t('poh_range_label', { min: fmt(min), max: fmt(max) });
+                },
+                get windRangeHint() {
+                    return this.t('poh_wind_range', { min: this.POH_LIMIT_MIN, max: '+' + this.POH_LIMIT_MAX });
+                },
+
+                // --- RESULTS ---
+                results: { groundRoll: 0, obstacle: 0 },
+                graphic: { groundRollPercent: 0, obstaclePercent: 0, runwayEndPercent: 0, rulerTicks: [] },
+                breakdown: {
+                    base_Lo_groundRoll: 0, base_Lo_obstacle: 0,
+                    tempEffect_Lt_groundRoll: 0, tempEffect_Lt_obstacle: 0,
+                    elevationEffect_Lh_groundRoll: 0, elevationEffect_Lh_obstacle: 0,
+                    subtotal_density_groundRoll: 0, subtotal_density_obstacle: 0,
+                    safetyMargin: 1.10,
+                    windFactor_Gr: 1.0,
+                    windFactor_Obs: 1.0,
+                    surfaceFactor: 1.0,
+                    crosswindFactor: 1.0,
+                },
+
+                // --- POH DATA (all in meters) ---
+                base_lo: { groundRoll: 170, obstacle: 265 },
+                elevationData: [ [0, 170, 265], [500, 213, 316], [1000, 265, 395], [1500, 332, 433] ],
+                tempData: [ [0, 140, 240], [10, 150, 255], [15, 170, 265], [20, 205, 295], [25, 250, 320], [30, 285, 390], [35, 310, 430], [40, 317, 455], [45, 338, 500] ],
+
+                // --- METHODS ---
+                init() {
+                    if (typeof this.$watch === 'function') {
+                        // Real Alpine context: restore the saved session BEFORE the first
+                        // calculate, then watch inputs (each edit recalculates and saves).
+                        this.restoreState();
+                        this.calculate();
+
+                        const watchedProps = [
+                            'elevation_ft',
+                            'temperature_c',
+                            'runwayHeading',
+                            'windDirection',
+                            'windSpeed_total',
+                            'runwaySurface',
+                            'runwayLength_m'
+                        ];
+
+                        watchedProps.forEach(prop => {
+                            this.$watch(prop, () => { this.calculate(); this.saveState(); });
+                        });
+
+                        // Units are a display preference, not a data edit: persist the
+                        // switch without refreshing the age clock.
+                        this.$watch('units', () => { this.calculate(); this.saveState(false); });
+
+                        // Re-render the data-age label every 30 s
+                        setInterval(() => { this.now = Date.now(); }, 30000);
+                    } else {
+                        // Plain factory instance (QUnit): no persistence, no watchers
+                        this.calculate();
+                    }
+                },
+
+                getWindFactors(windKts) {
+                    // Clamp values to table limits (safety)
+                    const minKts = this.windData[0].kts;
+                    const maxKts = this.windData[this.windData.length - 1].kts;
+
+                    // If the wind exceeds the table, clamp to the table limit
+                    let kts = Math.max(minKts, Math.min(windKts, maxKts));
+
+                    // Find the bracketing interval
+                    let lower = this.windData[0];
+                    let upper = this.windData[this.windData.length - 1];
+
+                    for (let i = 0; i < this.windData.length - 1; i++) {
+                        if (kts >= this.windData[i].kts && kts <= this.windData[i+1].kts) {
+                            lower = this.windData[i];
+                            upper = this.windData[i+1];
+                            break;
+                        }
+                    }
+
+                    // Linear interpolation
+                    const range = upper.kts - lower.kts;
+                    const factor = range === 0 ? 0 : (kts - lower.kts) / range;
+
+                    const current_gr_ft = lower.gr_ft + (upper.gr_ft - lower.gr_ft) * factor;
+                    const current_obs_ft = lower.obs_ft + (upper.obs_ft - lower.obs_ft) * factor;
+
+                    // Baseline row (0 kts) for the ratio
+                    const base = this.windData.find(d => d.kts === 0);
+
+                    // Multiplicative factors (e.g. 0.9 means 90% of the distance)
+                    return {
+                        gr: current_gr_ft / base.gr_ft,
+                        obs: current_obs_ft / base.obs_ft
+                    };
+                },
+
+                // Translation helper function
+                t(key, replacements = {}) {
+                    let text = this.translations[this.lang]?.[key] || key;
+                    for (const placeholder in replacements) {
+                        text = text.replace(`{${placeholder}}`, replacements[placeholder]);
+                    }
+                    return text;
+                },
+                setLang(newLang) {
+                    this.lang = newLang;
+                    this.calculate();
+                    this.saveState(false);
+                },
+                interpolate(x, data, valueIndex) {
+                    if (x <= data[0][0]) return data[0][valueIndex];
+                    if (x >= data[data.length - 1][0]) return data[data.length - 1][valueIndex];
+                    let p1 = null, p2 = null;
+                    for (let i = 1; i < data.length; i++) { if (data[i][0] >= x) { p2 = data[i]; p1 = data[i - 1]; break; } }
+                    const [x1, y1] = [p1[0], p1[valueIndex]]; const [x2, y2] = [p2[0], p2[valueIndex]];
+                    if (x1 === x2) return y1;
+                    return y1 + (x - x1) * (y2 - y1) / (x2 - x1);
+                },
+
+                // Wind components from runway heading and wind direction
+                calculateWindComponents() {
+                    // Calm, cleared or negative wind, or heading/direction pending or
+                    // outside 0-360: nothing to resolve (the arithmetic would happily
+                    // work on a nonsense angle, or coerce '' to 0 / spread NaN).
+                    // Note the > 0 form also rejects '' and negatives.
+                    if (!(this.windSpeed_total > 0) || !this.validDeg(this.runwayHeading) || !this.validDeg(this.windDirection)) {
+                        this.wind_kts = 0;
+                        this.crosswind_kts = 0;
+                        this.crosswind_from = null;
+                        return;
+                    }
+
+                    // Convert degrees to radians
+                    const rwyRad = this.runwayHeading * (Math.PI / 180);
+                    const windRad = this.windDirection * (Math.PI / 180);
+
+                    // Angle difference
+                    const angleDiff = windRad - rwyRad;
+
+                    // Cosine gives Headwind (+1) / Tailwind (-1) factor
+                    // If Wind blowing from North (360), Rwy 36 (360). cos(0) = 1. Headwind. Correct.
+                    // If Wind blowing from South (180), Rwy 36 (360). cos(-PI) = -1. Tailwind. Correct.
+                    this.wind_kts = this.windSpeed_total * Math.cos(angleDiff);
+
+                    // Sine gives Crosswind: sign only tells the side (positive = from the right),
+                    // the performance penalty uses the absolute value.
+                    const crosswind_signed = this.windSpeed_total * Math.sin(angleDiff);
+                    this.crosswind_kts = Math.abs(crosswind_signed);
+
+                    // Absorb float noise (e.g. sin(-PI) = 1.22e-16, not 0): Math.ceil() in the
+                    // crosswind factor would otherwise turn it into a phantom 1 kt penalty.
+                    const epsilon = 1e-9;
+                    if (Math.abs(this.wind_kts) < epsilon) this.wind_kts = 0;
+                    if (this.crosswind_kts < epsilon) this.crosswind_kts = 0;
+                    this.crosswind_from = this.crosswind_kts === 0 ? null : (crosswind_signed > 0 ? 'right' : 'left');
+                },
+
+                calculate() {
+                    // Update wind components first
+                    this.calculateWindComponents();
+
+                    this.warnings = [];
+
+                    // Required runway data still pending: show no distances instead of
+                    // silently-valid example numbers.
+                    if (!this.isReady) {
+                        this.results.groundRoll = 0;
+                        this.results.obstacle = 0;
+                        Object.assign(this.breakdown, {
+                            base_Lo_groundRoll: 0, base_Lo_obstacle: 0,
+                            tempEffect_Lt_groundRoll: 0, tempEffect_Lt_obstacle: 0,
+                            elevationEffect_Lh_groundRoll: 0, elevationEffect_Lh_obstacle: 0,
+                            subtotal_density_groundRoll: 0, subtotal_density_obstacle: 0,
+                            safetyMargin: 1.10, windFactor_Gr: 1.0, windFactor_Obs: 1.0,
+                            surfaceFactor: 1.0, crosswindFactor: 1.0,
+                        });
+                        this.graphic.groundRollPercent = 0;
+                        this.graphic.obstaclePercent = 0;
+                        this.graphic.runwayEndPercent = 0;
+                        this.graphic.rulerTicks = [];
+                        return;
+                    }
+
+                    const elevation_m = this.elevation_ft * 0.3048;
+
+                    // 0) Validate inputs against POH table limits
+                    const minTemp = this.tempData[0][0];
+                    const maxTemp = this.tempData[this.tempData.length - 1][0];
+                    if (this.temperature_c < minTemp || this.temperature_c > maxTemp) {
+                        const replacements = {
+                            temp: `<strong>${this.temperature_display}°${this.units === 'metric' ? 'C' : 'F'}</strong>`,
+                            min: this.units === 'metric' ? `${minTemp}°C` : `<strong>${Math.round(minTemp * 9/5 + 32)}°F</strong>`,
+                            max: this.units === 'metric' ? `${maxTemp}°C` : `<strong>${Math.round(maxTemp * 9/5 + 32)}°F</strong>`
+                        };
+                        this.warnings.push(this.t('warning_temp_oob', replacements));
+                    }
+
+                    const minElev = this.elevationData[0][0];
+                    const maxElev = this.elevationData[this.elevationData.length - 1][0];
+                    if (elevation_m < minElev || elevation_m > maxElev) {
+                         const replacements = {
+                            elev: `<strong>${this.elevation_display}${this.units === 'metric' ? 'm' : 'ft'}</strong>`,
+                            min: this.units === 'metric' ? `${minElev}m` : `<strong>${Math.round(minElev / 0.3048)}ft</strong>`,
+                            max: this.units === 'metric' ? `${maxElev}m` : `<strong>${Math.round(maxElev / 0.3048)}ft</strong>`
+                        };
+                        this.warnings.push(this.t('warning_elev_oob', replacements));
+                    }
+
+                    // 3) Wind outside the POH table
+                    // Official POH limits (instance fields, shared with the validity getter
+                    // and the range hint), ignoring our extrapolated rows
+                    // Warn when the computed wind exceeds the OFFICIAL limits
+                    if (this.wind_kts < this.POH_LIMIT_MIN || this.wind_kts > this.POH_LIMIT_MAX) {
+                        const replacements = {
+                            wind: `<strong>${this.wind_kts.toFixed(1)} kts</strong>`,
+                            min: `<strong>${this.POH_LIMIT_MIN} kts</strong>`,
+                            max: `<strong>${this.POH_LIMIT_MAX} kts</strong>`
+                        };
+                        // Warn, but keep calculating with the extrapolated data
+                        this.warnings.push(this.t('warning_wind_oob', replacements));
+                    }
+
+                    // 1) Base (ISA‑sea‑level) figures
+                    this.breakdown.base_Lo_groundRoll = this.base_lo.groundRoll;
+                    this.breakdown.base_Lo_obstacle   = this.base_lo.obstacle;
+
+                    // 2) Density‑altitude effects
+                    const lt_groundRoll = this.interpolate(this.temperature_c, this.tempData,      1);
+                    const lt_obstacle   = this.interpolate(this.temperature_c, this.tempData,      2);
+                    const lh_groundRoll = this.interpolate(elevation_m,         this.elevationData, 1);
+                    const lh_obstacle   = this.interpolate(elevation_m,         this.elevationData, 2);
+
+                    this.breakdown.tempEffect_Lt_groundRoll   = lt_groundRoll;
+                    this.breakdown.tempEffect_Lt_obstacle     = lt_obstacle;
+                    this.breakdown.elevationEffect_Lh_groundRoll = lh_groundRoll;
+                    this.breakdown.elevationEffect_Lh_obstacle   = lh_obstacle;
+
+                    let combined_groundRoll = lh_groundRoll + lt_groundRoll - this.base_lo.groundRoll;
+                    let combined_obstacle   = lh_obstacle   + lt_obstacle   - this.base_lo.obstacle;
+
+                    // 3) Conservative POH hot-atmosphere factor (always applied)
+                    // POH shows: L = 1.10 * (Lh + Lt − Lo) for "hot atmosphere".
+                    // We apply it ALWAYS as a conservative buffer (even if conditions are not strictly "hot atmosphere").
+                    this.breakdown.safetyMargin = 1.10;   // +10 %
+                    combined_groundRoll *= this.breakdown.safetyMargin;
+                    combined_obstacle   *= this.breakdown.safetyMargin;
+                    this.breakdown.subtotal_density_groundRoll = combined_groundRoll;
+                    this.breakdown.subtotal_density_obstacle   = combined_obstacle;
+
+                    // 4) Wind correction (POH factors)
+                    // Factors from the previously computed head/tailwind component
+                    const windFactors = this.getWindFactors(this.wind_kts);
+
+                    // Stored for the breakdown display
+                    this.breakdown.windFactor_Gr = windFactors.gr;
+                    this.breakdown.windFactor_Obs = windFactors.obs;
+
+                    // 5) Surface and cross‑wind factors
+                    this.breakdown.surfaceFactor   = this.runwaySurface === 'grass' ? 1.20 : 1.0;
+                    this.breakdown.crosswindFactor = 1.0 + (Math.ceil(this.crosswind_kts) * (0.10 / 5));
+
+                    // 6) Final result (multiplicative)
+                    // Formula: distance = (density + margin) * surfaceFactor * crosswindFactor * windFactor
+
+                    let final_groundRoll = combined_groundRoll *
+                                        this.breakdown.surfaceFactor *
+                                        this.breakdown.crosswindFactor *
+                                        this.breakdown.windFactor_Gr;
+
+                    let final_obstacle   = combined_obstacle *
+                                        this.breakdown.surfaceFactor *
+                                        this.breakdown.crosswindFactor *
+                                        this.breakdown.windFactor_Obs;
+
+                    this.results.groundRoll = Math.max(0, final_groundRoll);
+                    this.results.obstacle   = Math.max(0, final_obstacle);
+
+                    // 7) Update UI graphic
+                    this.updateGraphic();
+                },
+                updateGraphic() {
+                    const maxDist = Math.max(this.results.obstacle, this.runwayLength_m) * 1.15;
+                    if (maxDist > 0) {
+                        this.graphic.groundRollPercent = (this.results.groundRoll / maxDist) * 100;
+                        this.graphic.obstaclePercent = (this.results.obstacle / maxDist) * 100;
+                        this.graphic.runwayEndPercent = (this.runwayLength_m / maxDist) * 100;
+                    }
+                    this.calculateRulerTicks(maxDist);
+                },
+                getNiceStep(range) {
+                    const exponent = Math.floor(Math.log10(range));
+                    const powerOf10 = 10 ** exponent;
+                    const magnitude = range / powerOf10;
+                    if (magnitude < 2) return powerOf10 / 5;
+                    if (magnitude < 5) return powerOf10 / 2;
+                    return powerOf10;
+                },
+                calculateRulerTicks(maxDist) {
+                    this.graphic.rulerTicks = [];
+                    if (maxDist <= 0) return;
+                    let maxDistUnits = this.units === 'metric' ? maxDist : maxDist / 0.3048;
+                    const step = this.getNiceStep(maxDistUnits);
+                    for (let i = step; i < maxDistUnits; i += step) {
+                        const value_m = this.units === 'metric' ? i : i * 0.3048;
+                        this.graphic.rulerTicks.push({
+                            label: i.toFixed(0) + (this.units === 'metric' ? 'm' : 'ft'),
+                            positionPercent: (value_m / maxDist) * 100,
+                        });
+                    }
+                },
+                format(valueInMeters) {
+                    // Null-safe: hidden bindings still evaluate while inputs are pending
+                    if (!Number.isFinite(valueInMeters)) return '---';
+                    const value = this.units === 'metric' ? valueInMeters : valueInMeters / 0.3048;
+                    const unit = this.units === 'metric' ? ' m' : ' ft';
+                    return value.toFixed(0) + unit;
+                },
+                // Signed variant for the runway margin ('+313 m' / '-51 m'); null shows '---'
+                formatSigned(valueInMeters) {
+                    if (!Number.isFinite(valueInMeters)) return '---';
+                    const value = this.units === 'metric' ? valueInMeters : valueInMeters / 0.3048;
+                    const unit = this.units === 'metric' ? ' m' : ' ft';
+                    return (value >= 0 ? '+' : '') + value.toFixed(0) + unit;
+                },
+
+                // --- PERSISTENCE, RESET & DATA AGE ---
+                // Active only inside Alpine ($watch exists): plain QUnit factory
+                // instances stay inert unless a test stubs $watch on purpose.
+                get persistenceActive() { return typeof this.$watch === 'function'; },
+                // touch=false persists preferences (lang/units) without refreshing the
+                // age clock: savedAt keeps meaning "last time DATA was entered".
+                saveState(touch = true) {
+                    if (!this.persistenceActive || this._suppressSave) return;
+                    if (touch) this.savedAt = Date.now();
+                    try {
+                        localStorage.setItem(this.STORAGE_KEY, JSON.stringify({
+                            v: 1,
+                            savedAt: this.savedAt,
+                            state: {
+                                lang: this.lang,
+                                units: this.units,
+                                runwayLength_m: this.runwayLength_m,
+                                runwayHeading: this.runwayHeading,
+                                windDirection: this.windDirection,
+                                windSpeed_total: this.windSpeed_total,
+                                elevation_ft: this.elevation_ft,
+                                temperature_c: this.temperature_c,
+                                runwaySurface: this.runwaySurface,
+                            }
+                        }));
+                    } catch (e) { /* private mode / storage full: keep calculating */ }
+                },
+                restoreState() {
+                    if (!this.persistenceActive) return;
+                    let payload = null;
+                    try { payload = JSON.parse(localStorage.getItem(this.STORAGE_KEY)); } catch (e) { return; }
+                    if (!payload || payload.v !== 1 || typeof payload.state !== 'object' || payload.state === null) return;
+                    const s = payload.state;
+                    const finiteOrNull = v => v === null || Number.isFinite(v);
+                    const degOrNull = v => v === null || (Number.isFinite(v) && v >= 0 && v <= 360);
+                    if (['es', 'en'].includes(s.lang)) this.lang = s.lang;
+                    if (['metric', 'imperial'].includes(s.units)) this.units = s.units;
+                    if (finiteOrNull(s.runwayLength_m)) this.runwayLength_m = s.runwayLength_m;
+                    if (degOrNull(s.runwayHeading)) this.runwayHeading = s.runwayHeading;
+                    if (degOrNull(s.windDirection)) this.windDirection = s.windDirection;
+                    if (Number.isFinite(s.windSpeed_total) && s.windSpeed_total >= 0) this.windSpeed_total = s.windSpeed_total;
+                    if (Number.isFinite(s.elevation_ft)) this.elevation_ft = s.elevation_ft;
+                    if (Number.isFinite(s.temperature_c)) this.temperature_c = s.temperature_c;
+                    if ([null, 'paved', 'grass'].includes(s.runwaySurface)) this.runwaySurface = s.runwaySurface;
+                    if (Number.isFinite(payload.savedAt)) this.savedAt = payload.savedAt;
+                },
+                // Clears the saved session and the flight inputs; lang and units are
+                // UI preferences and survive the reset.
+                reset() {
+                    // The watchers fire (async) on these assignments; without the flag
+                    // they would immediately re-save the pristine state just cleared.
+                    this._suppressSave = true;
+                    try { localStorage.removeItem(this.STORAGE_KEY); } catch (e) {}
+                    this.savedAt = null;
+                    const fresh = takeoffCalculator();
+                    ['runwayLength_m', 'runwayHeading', 'windDirection', 'windSpeed_total',
+                     'elevation_ft', 'temperature_c', 'runwaySurface'].forEach(k => { this[k] = fresh[k]; });
+                    this.calculate();
+                    const release = () => { this._suppressSave = false; };
+                    if (typeof this.$nextTick === 'function') this.$nextTick(release); else release();
+                },
+                get dataAge() {
+                    return this.savedAt === null ? '' : this.formatAge(this.now - this.savedAt);
+                },
+                // Stale conditions get a visual nudge instead of an expiry
+                get dataAgeClass() {
+                    if (this.savedAt === null) return '';
+                    const ms = this.now - this.savedAt;
+                    if (ms >= 24 * 3600 * 1000) return 'text-red-600 font-bold';
+                    if (ms >= 6 * 3600 * 1000) return 'text-amber-600';
+                    return 'text-gray-500';
+                },
+                formatAge(ms) {
+                    const mins = Math.floor(ms / 60000);
+                    if (mins < 1) return this.t('age_just_now');
+                    if (mins < 60) return this.t('age_min', { n: mins });
+                    const hours = Math.floor(mins / 60);
+                    if (hours < 24) return this.t('age_hours', { n: hours });
+                    const days = Math.floor(hours / 24);
+                    return this.t(days === 1 ? 'age_day' : 'age_days', { n: days });
+                }
+            }
+        }
+    </script>
+
+    <script id="test-suite-script">
+    (function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('test')) {
+            document.getElementById('qunit-container').style.display = 'block';
+            const qunitCss = document.createElement('link');
+            qunitCss.rel = 'stylesheet';
+            qunitCss.href = 'assets/qunit-2.26.0.css';
+            document.head.appendChild(qunitCss);
+            const qunitScript = document.createElement('script');
+            qunitScript.src = 'assets/qunit-2.26.0.js';
+            qunitScript.onload = function() {
+                runTests();
+            };
+            document.body.appendChild(qunitScript);
+        }
+
+        function runTests() {
+            // Fills the required runway data and conditions (all empty by default
+            // since the no-silently-valid-defaults change) so a test starts ready.
+            function ready(calculator, overrides = {}) {
+                calculator.runwayLength_m = 1235;
+                calculator.runwayHeading = 360;
+                calculator.windDirection = 360;
+                calculator.windSpeed_total = 0;
+                calculator.runwaySurface = 'grass';
+                calculator.elevation_ft = 0;
+                calculator.temperature_c = 15;
+                Object.assign(calculator, overrides);
+                return calculator;
+            }
+
+            // Section 5.6 of POH-162-00-40-001 rev. A07, written out here so every
+            // figure can be checked against the handbook it comes from.
+            // and written out again here on purpose. This is the only check that catches a
+            // value mistyped INTO a table. The invariants further down only notice a number
+            // that breaks the ordering of a column; a typo that keeps the table monotonic
+            // (433 to 425 m at 1500 m, say) slips past every other test in this file, because
+            // no worked example happens to land on that point. Editing a table without editing
+            // this block fails the suite, which is the point: it makes the edit deliberate.
+            QUnit.module('POH source data (Section 5.6)', function() {
+
+                QUnit.test('5.6.1 Reference distances at sea level, 15 °C, MTOM', function(assert) {
+                    const c = takeoffCalculator();
+                    assert.equal(c.base_lo.groundRoll, 170, 'Ground roll 555 ft / 170 m');
+                    assert.equal(c.base_lo.obstacle, 265, '50 ft obstacle 870 ft / 265 m');
+                });
+
+                QUnit.test('5.6.2 Effects of elevation', function(assert) {
+                    // [metres, ground roll m, 50 ft obstacle m]
+                    const POH = [[0, 170, 265], [500, 213, 316], [1000, 265, 395], [1500, 332, 433]];
+                    assert.deepEqual(takeoffCalculator().elevationData, POH, 'Elevation table as published');
+                });
+
+                QUnit.test('5.6.3 Effects of outside air temperature', function(assert) {
+                    // [°C, ground roll m, 50 ft obstacle m]
+                    const POH = [[0, 140, 240], [10, 150, 255], [15, 170, 265], [20, 205, 295],
+                                 [25, 250, 320], [30, 285, 390], [35, 310, 430], [40, 317, 455],
+                                 [45, 338, 500]];
+                    assert.deepEqual(takeoffCalculator().tempData, POH, 'Temperature table as published');
+                });
+
+                QUnit.test('5.6.4 Effects of the wind', function(assert) {
+                    // [kts, ground roll ft, 50 ft obstacle ft]. Feet, because that is the column
+                    // the calculator takes its ratios from. Note the published metric column has
+                    // its own problem: -6 kts reads 270 m against 680 ft, and 680 ft is 207 m.
+                    // Every other row converts, so the feet column is the one to trust.
+                    const POH = [[-6, 680, 1130], [-4, 645, 1065], [-2, 605, 965], [0, 555, 870],
+                                 [4, 525, 810], [8, 495, 760], [12, 480, 720]];
+                    const c = takeoffCalculator();
+                    const published = c.windData
+                        .filter(r => r.kts >= c.POH_LIMIT_MIN && r.kts <= c.POH_LIMIT_MAX)
+                        .map(r => [r.kts, r.gr_ft, r.obs_ft]);
+                    assert.deepEqual(published, POH, 'Wind rows inside the POH range as published');
+
+                    const ours = c.windData.filter(r => r.kts < c.POH_LIMIT_MIN || r.kts > c.POH_LIMIT_MAX);
+                    assert.deepEqual(ours.map(r => r.kts), [-40, 40],
+                        'The only rows that are not POH data are the two extrapolated ones');
+                });
+
+                QUnit.test('5.6 Factors quoted in the text', function(assert) {
+                    // "It is mandatory to consider the takeoff runway length with a safety
+                    // margin of 1.10", "Soft (grass) runways increase the published takeoff
+                    // performance data by 20%", "The runway length required increases by 10 %
+                    // for every 5 kts of crosswind component."
+                    let c = ready(takeoffCalculator(), { runwaySurface: 'paved' });
+                    c.calculate();
+                    assert.equal(c.breakdown.safetyMargin, 1.10, 'Mandatory 1.10 safety margin');
+                    assert.equal(c.breakdown.surfaceFactor, 1.0, 'Paved runway adds nothing');
+
+                    c = ready(takeoffCalculator(), { runwaySurface: 'grass' });
+                    c.calculate();
+                    assert.equal(c.breakdown.surfaceFactor, 1.20, 'Grass adds 20%');
+
+                    // 5 kts straight across the runway: +10%
+                    c = ready(takeoffCalculator(), { runwayHeading: 360, windDirection: 90, windSpeed_total: 5 });
+                    c.calculate();
+                    assert.ok(Math.abs(c.breakdown.crosswindFactor - 1.10) < 1e-9, '5 kts of crosswind adds 10%');
+
+                    // A crosswind is almost never a whole number of knots, and the penalty
+                    // is applied per started knot rather than by proportion: 5.1 kts costs
+                    // what 6 does. Every case above used an integer, where rounding up and
+                    // rounding down agree, so a mutation that rounded down went unnoticed
+                    // by the whole suite. Rounding down is the direction that asks for less
+                    // runway than the rule intends, which is the direction not to be wrong in.
+                    c = ready(takeoffCalculator(), { runwayHeading: 360, windDirection: 90, windSpeed_total: 5.1 });
+                    c.calculate();
+                    assert.ok(Math.abs(c.breakdown.crosswindFactor - 1.12) < 1e-9,
+                        '5.1 kts of crosswind is charged as 6, not as 5');
+
+                    assert.equal(c.POH_LIMIT_MIN, -6, 'Published wind table starts at -6 kts');
+                    assert.equal(c.POH_LIMIT_MAX, 12, 'And ends at +12 kts');
+                });
+            });
+
+            QUnit.module('Wind Components', function(hooks) {
+                hooks.beforeEach(function() {
+                    this.calculator = takeoffCalculator();
+                });
+
+                QUnit.test('Direct Headwind', function(assert) {
+                    this.calculator.runwayHeading = 360;
+                    this.calculator.windDirection = 360;
+                    this.calculator.windSpeed_total = 10;
+                    this.calculator.calculateWindComponents();
+
+                    assert.ok(Math.abs(this.calculator.wind_kts - 10) < 0.1, 'Headwind should be 10');
+                    assert.ok(Math.abs(this.calculator.crosswind_kts - 0) < 0.1, 'Crosswind should be 0');
+                });
+
+                QUnit.test('Direct Tailwind', function(assert) {
+                    this.calculator.runwayHeading = 360;
+                    this.calculator.windDirection = 180;
+                    this.calculator.windSpeed_total = 10;
+                    this.calculator.calculateWindComponents();
+
+                    // Cos(180) = -1, so result is -10
+                    assert.ok(Math.abs(this.calculator.wind_kts - (-10)) < 0.1, 'Headwind should be -10 (Tailwind)');
+                    assert.ok(Math.abs(this.calculator.crosswind_kts - 0) < 0.1, 'Crosswind should be 0');
+                });
+
+                QUnit.test('Direct Crosswind', function(assert) {
+                    this.calculator.runwayHeading = 360;
+                    this.calculator.windDirection = 90;
+                    this.calculator.windSpeed_total = 10;
+                    this.calculator.calculateWindComponents();
+
+                    assert.ok(Math.abs(this.calculator.wind_kts - 0) < 0.1, 'Headwind should be 0');
+                    assert.ok(Math.abs(this.calculator.crosswind_kts - 10) < 0.1, 'Crosswind should be 10');
+                });
+
+                QUnit.test('45 Degree Offset', function(assert) {
+                    this.calculator.runwayHeading = 360;
+                    this.calculator.windDirection = 45;
+                    this.calculator.windSpeed_total = 10;
+                    this.calculator.calculateWindComponents();
+
+                    // Cos(45) and Sin(45) approx 0.707
+                    assert.ok(Math.abs(this.calculator.wind_kts - 7.07) < 0.1, 'Headwind correct');
+                    assert.ok(Math.abs(this.calculator.crosswind_kts - 7.07) < 0.1, 'Crosswind correct');
+                });
+
+                QUnit.test('Direct tailwind leaves exactly zero crosswind (float-noise regression)', function(assert) {
+                    this.calculator.runwayHeading = 360;
+                    this.calculator.windDirection = 180;
+                    this.calculator.windSpeed_total = 6;
+                    this.calculator.calculateWindComponents();
+
+                    // sin(-PI) = 1.22e-16 used to leak into Math.ceil() as a phantom 1 kt crosswind
+                    assert.strictEqual(this.calculator.crosswind_kts, 0, 'Crosswind is exactly 0');
+                    assert.ok(Math.abs(this.calculator.wind_kts - (-6)) < 0.1, 'Full 6 kts tailwind');
+                });
+
+                QUnit.test('North as 000 vs runway 360 is a pure headwind', function(assert) {
+                    this.calculator.runwayHeading = 360;
+                    this.calculator.windDirection = 0;
+                    this.calculator.windSpeed_total = 10;
+                    this.calculator.calculateWindComponents();
+
+                    assert.ok(Math.abs(this.calculator.wind_kts - 10) < 0.1, 'Full headwind');
+                    assert.strictEqual(this.calculator.crosswind_kts, 0, 'No crosswind from the 360-degree wrap-around');
+                });
+
+                QUnit.test('Angles outside 0-360 leave no wind components', function(assert) {
+                    this.calculator.runwayHeading = 360;
+                    this.calculator.windDirection = 400;
+                    this.calculator.windSpeed_total = 10;
+                    this.calculator.calculateWindComponents();
+                    assert.strictEqual(this.calculator.wind_kts, 0, 'No head/tailwind from a nonsense direction');
+                    assert.strictEqual(this.calculator.crosswind_kts, 0, 'No crosswind either');
+                    assert.strictEqual(this.calculator.crosswind_from, null, 'No crosswind side');
+                    assert.true(this.calculator.windPending, 'Wind cells fall back to the pending placeholder');
+
+                    this.calculator.windDirection = 90;
+                    this.calculator.runwayHeading = 400;
+                    this.calculator.calculateWindComponents();
+                    assert.strictEqual(this.calculator.wind_kts, 0, 'Out-of-range heading also blocks the components');
+                    assert.true(this.calculator.windPending, 'Pending placeholder for the bad heading too');
+                });
+            });
+
+            QUnit.module('getWindFactors (POH wind table)', function(hooks) {
+                hooks.beforeEach(function() {
+                    this.calculator = takeoffCalculator();
+                });
+
+                QUnit.test('Exact POH table points', function(assert) {
+                    let f = this.calculator.getWindFactors(0);
+                    assert.ok(Math.abs(f.gr - 1) < 0.001 && Math.abs(f.obs - 1) < 0.001, '0 kts is the 1.0 baseline');
+
+                    f = this.calculator.getWindFactors(12);
+                    assert.ok(Math.abs(f.gr - 480/555) < 0.001, '+12 kts ground roll factor is 480/555');
+                    assert.ok(Math.abs(f.obs - 720/870) < 0.001, '+12 kts obstacle factor is 720/870');
+
+                    f = this.calculator.getWindFactors(-6);
+                    assert.ok(Math.abs(f.gr - 680/555) < 0.001, '-6 kts ground roll factor is 680/555');
+                    assert.ok(Math.abs(f.obs - 1130/870) < 0.001, '-6 kts obstacle factor is 1130/870');
+                });
+
+                QUnit.test('Linear interpolation between table points', function(assert) {
+                    let f = this.calculator.getWindFactors(2); // midpoint of 0..+4
+                    assert.ok(Math.abs(f.gr - 540/555) < 0.001, '+2 kts ground roll midway between 555 and 525 ft');
+                    assert.ok(Math.abs(f.obs - 840/870) < 0.001, '+2 kts obstacle midway between 870 and 810 ft');
+
+                    f = this.calculator.getWindFactors(-3); // midpoint of -4..-2
+                    assert.ok(Math.abs(f.gr - 625/555) < 0.001, '-3 kts ground roll midway between 645 and 605 ft');
+                    assert.ok(Math.abs(f.obs - 1015/870) < 0.001, '-3 kts obstacle midway between 1065 and 965 ft');
+                });
+
+                QUnit.test('Extrapolated region beyond POH data', function(assert) {
+                    let f = this.calculator.getWindFactors(26); // midpoint of +12..+40
+                    assert.ok(Math.abs(f.gr - 427.5/555) < 0.001, '+26 kts ground roll midway between 480 and 375 ft');
+                    assert.ok(Math.abs(f.obs - 641.5/870) < 0.001, '+26 kts obstacle midway between 720 and 563 ft');
+
+                    f = this.calculator.getWindFactors(-23); // midpoint of -40..-6
+                    assert.ok(Math.abs(f.gr - 1040/555) < 0.001, '-23 kts ground roll midway between 680 and 1400 ft');
+                    assert.ok(Math.abs(f.obs - 1865/870) < 0.001, '-23 kts obstacle midway between 1130 and 2600 ft');
+                });
+
+                QUnit.test('Clamping beyond table limits', function(assert) {
+                    const fMax = this.calculator.getWindFactors(40);
+                    const fOver = this.calculator.getWindFactors(60);
+                    assert.ok(Math.abs(fOver.gr - fMax.gr) < 1e-9 && Math.abs(fOver.obs - fMax.obs) < 1e-9, '+60 kts clamps to the +40 kts row');
+
+                    const fMin = this.calculator.getWindFactors(-40);
+                    const fUnder = this.calculator.getWindFactors(-60);
+                    assert.ok(Math.abs(fUnder.gr - fMin.gr) < 1e-9 && Math.abs(fUnder.obs - fMin.obs) < 1e-9, '-60 kts clamps to the -40 kts row');
+                });
+
+                QUnit.test('Both columns keep falling as the headwind grows', function(assert) {
+                    // A table edit that broke the ordering of either column would silently
+                    // turn "more headwind" into "more distance" somewhere in between.
+                    const rows = this.calculator.windData;
+                    let ktsOk = true, grOk = true, obsOk = true;
+                    for (let i = 1; i < rows.length; i++) {
+                        if (rows[i].kts <= rows[i - 1].kts) ktsOk = false;
+                        if (rows[i].gr_ft >= rows[i - 1].gr_ft) grOk = false;
+                        if (rows[i].obs_ft >= rows[i - 1].obs_ft) obsOk = false;
+                    }
+                    assert.ok(ktsOk, 'Rows are sorted by ascending kts (getWindFactors brackets on that)');
+                    assert.ok(grOk, 'Ground roll column decreases row by row');
+                    assert.ok(obsOk, 'Obstacle column decreases row by row');
+                });
+
+                QUnit.test('Headwind shortens, tailwind lengthens, GR and obstacle differ', function(assert) {
+                    const hw = this.calculator.getWindFactors(12);
+                    const tw = this.calculator.getWindFactors(-6);
+                    assert.ok(hw.gr < 1 && hw.obs < 1, 'Headwind factors below 1');
+                    assert.ok(tw.gr > 1 && tw.obs > 1, 'Tailwind factors above 1');
+                    assert.ok(Math.abs(hw.gr - hw.obs) > 0.01, 'Ground roll and obstacle use distinct factors');
+                });
+            });
+
+             QUnit.module('Core Calculation Logic', function(hooks) {
+                hooks.beforeEach(function() {
+                    this.calculator = ready(takeoffCalculator());
+                    this.calculator.init();
+                });
+
+                 QUnit.test('Scenario: Headwind benefit derived from direction', function(assert) {
+                    this.calculator.elevation_ft = 0;
+                    this.calculator.temperature_c = 15;
+                    // Setup 12 kts headwind
+                    this.calculator.runwayHeading = 360;
+                    this.calculator.windDirection = 360;
+                    this.calculator.windSpeed_total = 12;
+                    this.calculator.runwaySurface = 'paved';
+
+                    this.calculator.calculate();
+
+                    // 170 * 1.10 * (480/555) = 161.7 m (multiplicative POH wind factor at +12 kts)
+                    assert.ok(Math.abs(this.calculator.results.groundRoll - 161.7) < 1, 'Headwind correctly reduces ground roll');
+                });
+
+                QUnit.test('Scenario: Tailwind lengthens ground roll with no phantom crosswind factor', function(assert) {
+                    this.calculator.elevation_ft = 0;
+                    this.calculator.temperature_c = 15;
+                    this.calculator.runwayHeading = 360;
+                    this.calculator.windDirection = 180;
+                    this.calculator.windSpeed_total = 6;
+                    this.calculator.runwaySurface = 'paved';
+
+                    this.calculator.calculate();
+
+                    // 170 * 1.10 * (680/555) = 229.1 m
+                    assert.ok(Math.abs(this.calculator.results.groundRoll - 229.1) < 1, 'Tailwind lengthens ground roll');
+                    assert.strictEqual(this.calculator.breakdown.crosswindFactor, 1.0, 'No crosswind penalty on a direct tailwind');
+                });
+
+                QUnit.test('Scenario: Obstacle distance uses its own POH wind factor', function(assert) {
+                    this.calculator.elevation_ft = 0;
+                    this.calculator.temperature_c = 15;
+                    this.calculator.runwayHeading = 360;
+                    this.calculator.windDirection = 360;
+                    this.calculator.windSpeed_total = 12;
+                    this.calculator.runwaySurface = 'paved';
+
+                    this.calculator.calculate();
+
+                    // 265 * 1.10 * (720/870) = 241.2 m
+                    assert.ok(Math.abs(this.calculator.results.obstacle - 241.2) < 1, 'Obstacle distance uses the obstacle column');
+                    assert.ok(Math.abs(this.calculator.breakdown.windFactor_Gr - 480/555) < 0.001, 'Ground roll factor comes from the GR column');
+                    assert.ok(Math.abs(this.calculator.breakdown.windFactor_Obs - 720/870) < 0.001, 'Obstacle factor comes from the obstacle column');
+                });
+
+                QUnit.test('Scenario: Pure crosswind penalizes without a head/tailwind factor', function(assert) {
+                    this.calculator.elevation_ft = 0;
+                    this.calculator.temperature_c = 15;
+                    this.calculator.runwayHeading = 360;
+                    this.calculator.windDirection = 90;
+                    this.calculator.windSpeed_total = 10;
+                    this.calculator.runwaySurface = 'paved';
+
+                    this.calculator.calculate();
+
+                    assert.strictEqual(this.calculator.wind_kts, 0, 'cos(PI/2) noise does not create a head/tailwind');
+                    assert.ok(Math.abs(this.calculator.breakdown.windFactor_Gr - 1) < 0.001, 'Neutral head/tailwind factor');
+                    assert.ok(Math.abs(this.calculator.breakdown.crosswindFactor - 1.20) < 0.001, '10 kts crosswind adds +20%');
+                    // 170 * 1.10 * 1.20 = 224.4 m
+                    assert.ok(Math.abs(this.calculator.results.groundRoll - 224.4) < 1, 'Ground roll grows only by the crosswind factor');
+                });
+
+                QUnit.test('Scenario: POH 5.6.3 worked example (25 °C at 500 m)', function(assert) {
+                    this.calculator.elevation_ft = 500 / 0.3048;
+                    this.calculator.temperature_c = 25;
+                    this.calculator.windSpeed_total = 0;
+                    this.calculator.runwaySurface = 'paved';
+
+                    this.calculator.calculate();
+
+                    // POH: L = 1.10 * (Lh + Lt - Lo) = 1.10 * (213 + 250 - 170) = 322.3 m
+                    assert.ok(Math.abs(this.calculator.results.groundRoll - 322.3) < 1, 'Matches the POH worked example');
+                });
+
+                QUnit.test('POH range warnings', function(assert) {
+                    let c = ready(takeoffCalculator());
+                    c.calculate();
+                    assert.equal(c.warnings.length, 0, 'Baseline ready values are inside every POH table');
+
+                    c = ready(takeoffCalculator(), { windSpeed_total: 20 });
+                    c.calculate();
+                    assert.equal(c.warnings.length, 1, 'Headwind beyond +12 kts warns about extrapolated data');
+
+                    c = ready(takeoffCalculator(), { windDirection: 180, windSpeed_total: 10 });
+                    c.calculate();
+                    assert.equal(c.warnings.length, 1, 'Tailwind beyond -6 kts warns about extrapolated data');
+
+                    c = ready(takeoffCalculator(), { temperature_c: 50 });
+                    c.calculate();
+                    assert.equal(c.warnings.length, 1, 'Temperature beyond 45 °C warns');
+
+                    c = ready(takeoffCalculator(), { elevation_ft: 6000 });
+                    c.calculate();
+                    assert.equal(c.warnings.length, 1, 'Elevation beyond 1500 m warns');
+                });
+
+                QUnit.test('The 50 ft distance is never shorter than the ground roll', function(assert) {
+                    // You cannot be 50 ft up before leaving the ground. Sweeps the whole input
+                    // space instead of a handful of points, because the case that broke this
+                    // (a headwind past +29 kts, where the extrapolated wind rows used to
+                    // cross) is not one anybody writes down as an example.
+                    const c = ready(takeoffCalculator());
+                    let worst = null;
+                    for (let t = 0; t <= 45; t += 2.5) {
+                        for (let elev_m = 0; elev_m <= 1500; elev_m += 100) {
+                            for (let kts = -60; kts <= 60; kts += 2.5) {
+                                for (const surface of ['paved', 'grass']) {
+                                    Object.assign(c, {
+                                        temperature_c: t,
+                                        elevation_ft: elev_m / 0.3048,
+                                        runwayHeading: 360,
+                                        // Negative kts means the wind blows from behind
+                                        windDirection: kts >= 0 ? 360 : 180,
+                                        windSpeed_total: Math.abs(kts),
+                                        runwaySurface: surface,
+                                    });
+                                    c.calculate();
+                                    const slack = c.results.obstacle - c.results.groundRoll;
+                                    if (worst === null || slack < worst.slack) {
+                                        worst = { slack, t, elev_m, kts, surface,
+                                                  gr: c.results.groundRoll, obs: c.results.obstacle };
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    assert.ok(worst.slack >= 0,
+                        `Obstacle distance stays above the ground roll everywhere (tightest at ` +
+                        `${worst.t} °C, ${worst.elev_m} m, ${worst.kts} kts, ${worst.surface}: ` +
+                        `${worst.obs.toFixed(1)} m vs ${worst.gr.toFixed(1)} m)`);
+                });
+             });
+
+            // Deterministic grid sweeps over the whole input space. They pin down the SHAPE
+            // of the calculation (conservation, monotonicity, ordering) rather than single
+            // worked examples, which is what catches a POH table edited by hand: the example
+            // tests check individual points, these check the curve those points sit on.
+            // Fixed grids, no random seeds, so a failure here always reproduces.
+            // 'The 50 ft distance is never shorter than the ground roll' above is one of
+            // these; it lives with the scenarios because that is the bug it came from.
+            QUnit.module('Invariants (grid sweeps)', function() {
+
+                QUnit.test('Wind decomposition preserves the total speed', function(assert) {
+                    // Head/tailwind and crosswind are the legs of a right triangle whose
+                    // hypotenuse is the reported wind speed, at any angle. A swapped sin/cos
+                    // or a sign slip breaks this everywhere except on the four cardinals,
+                    // which is exactly where the example tests look.
+                    const c = ready(takeoffCalculator());
+                    let worst = { err: 0 };
+                    for (let rwy = 0; rwy <= 360; rwy += 10) {
+                        for (let dir = 0; dir <= 360; dir += 10) {
+                            for (let spd = 0; spd <= 50; spd += 5) {
+                                Object.assign(c, { runwayHeading: rwy, windDirection: dir, windSpeed_total: spd });
+                                c.calculateWindComponents();
+                                const err = Math.abs(Math.hypot(c.wind_kts, c.crosswind_kts) - spd);
+                                if (err > worst.err) worst = { err, rwy, dir, spd };
+                            }
+                        }
+                    }
+                    assert.ok(worst.err < 1e-9,
+                        `Components always add back up to the total speed (worst error ${worst.err.toExponential(1)}` +
+                        (worst.err > 0 ? ` at runway ${worst.rwy}, wind ${worst.dir} at ${worst.spd} kts` : '') + ')');
+                });
+
+                QUnit.test('More headwind never lengthens either distance', function(assert) {
+                    // Straight down the runway, so the crosswind factor stays out of it: at an
+                    // angle, more wind feeds both the helpful component and the penalising one.
+                    const c = ready(takeoffCalculator());
+                    let bad = null;
+                    for (const elev_m of [0, 750, 1500]) {
+                        for (const t of [0, 15, 30, 45]) {
+                            for (const surface of ['paved', 'grass']) {
+                                let prev = null;
+                                for (let kts = -60; kts <= 60 && !bad; kts += 1) {
+                                    Object.assign(c, { temperature_c: t, elevation_ft: elev_m / 0.3048,
+                                        runwayHeading: 360, windDirection: kts >= 0 ? 360 : 180,
+                                        windSpeed_total: Math.abs(kts), runwaySurface: surface });
+                                    c.calculate();
+                                    if (prev && (c.results.groundRoll > prev.gr + 1e-9 || c.results.obstacle > prev.obs + 1e-9)) {
+                                        bad = { t, elev_m, surface, kts, prev, now: { gr: c.results.groundRoll, obs: c.results.obstacle } };
+                                    }
+                                    prev = { gr: c.results.groundRoll, obs: c.results.obstacle };
+                                }
+                            }
+                        }
+                    }
+                    assert.ok(bad === null, bad === null ? 'Both distances fall as the headwind grows, from 60 kts of tailwind to 60 of headwind'
+                        : `Distance grew at ${bad.kts} kts (${bad.t} °C, ${bad.elev_m} m, ${bad.surface}): ${bad.prev.gr.toFixed(1)}/${bad.prev.obs.toFixed(1)} to ${bad.now.gr.toFixed(1)}/${bad.now.obs.toFixed(1)} m`);
+                });
+
+                QUnit.test('Hotter and higher never shortens either distance', function(assert) {
+                    // Density altitude only ever costs runway. Guards the ordering of the
+                    // temperature and elevation tables, which the point tests do not.
+                    const c = ready(takeoffCalculator());
+                    const sweep = (label, values, apply) => {
+                        let bad = null, prev = null;
+                        for (const v of values) {
+                            Object.assign(c, apply(v));
+                            c.calculate();
+                            if (prev && (c.results.groundRoll < prev.gr - 1e-9 || c.results.obstacle < prev.obs - 1e-9)) {
+                                bad = bad || { v, prev, now: { gr: c.results.groundRoll, obs: c.results.obstacle } };
+                            }
+                            prev = { gr: c.results.groundRoll, obs: c.results.obstacle };
+                        }
+                        assert.ok(bad === null, bad === null ? `${label} never shortens the distances`
+                            : `${label} shortened them at ${bad.v}: ${bad.prev.gr.toFixed(1)}/${bad.prev.obs.toFixed(1)} to ${bad.now.gr.toFixed(1)}/${bad.now.obs.toFixed(1)} m`);
+                    };
+                    const temps = [], elevs = [];
+                    for (let t = -10; t <= 55; t += 0.5) temps.push(t);
+                    for (let e = 0; e <= 2000; e += 10) elevs.push(e);
+                    for (const elev_m of [0, 750, 1500]) {
+                        sweep(`Rising temperature at ${elev_m} m`, temps,
+                            t => ({ temperature_c: t, elevation_ft: elev_m / 0.3048, windSpeed_total: 0, runwaySurface: 'paved' }));
+                    }
+                    for (const t of [0, 25, 45]) {
+                        sweep(`Rising elevation at ${t} °C`, elevs,
+                            e => ({ temperature_c: t, elevation_ft: e / 0.3048, windSpeed_total: 0, runwaySurface: 'paved' }));
+                    }
+                });
+
+                QUnit.test('calculate() is idempotent', function(assert) {
+                    // Every input edit fires it again through the watchers, so a second run on
+                    // unchanged inputs has to land on the same numbers. Catches state that
+                    // accumulates instead of being recomputed.
+                    const c = ready(takeoffCalculator());
+                    const snapshot = () => JSON.stringify([c.results, c.breakdown, c.warnings, c.graphic]);
+                    let bad = null;
+                    for (let t = 0; t <= 45 && !bad; t += 5) {
+                        for (let elev_m = 0; elev_m <= 1500 && !bad; elev_m += 250) {
+                            for (let kts = -30; kts <= 40 && !bad; kts += 5) {
+                                for (const surface of ['paved', 'grass']) {
+                                    Object.assign(c, { temperature_c: t, elevation_ft: elev_m / 0.3048,
+                                        runwayHeading: 45, windDirection: 45 + kts, windSpeed_total: Math.abs(kts),
+                                        runwaySurface: surface });
+                                    c.calculate(); const first = snapshot();
+                                    c.calculate(); const second = snapshot();
+                                    if (first !== second) { bad = { t, elev_m, kts, surface }; break; }
+                                }
+                            }
+                        }
+                    }
+                    assert.ok(bad === null, bad === null ? 'A second calculate() on the same inputs changes nothing'
+                        : `Second run differed at ${JSON.stringify(bad)}`);
+                });
+
+                QUnit.test('Every heading maps to a designator between 01 and 36', function(assert) {
+                    // 004° reads as runway 36, not runway 00, and 360 never reads as 00.
+                    let bad = null;
+                    const c = ready(takeoffCalculator());
+                    for (let h = 0; h <= 360 && !bad; h += 0.5) {
+                        c.runwayHeading = h;
+                        const d = c.runwayDesignator;
+                        if (!/^(0[1-9]|[12][0-9]|3[0-6])$/.test(d)) bad = { h, d };
+                    }
+                    assert.ok(bad === null, bad === null ? 'Headings 0 to 360 all land on 01 through 36'
+                        : `Heading ${bad.h}° produced '${bad.d}'`);
+                });
+            });
+
+            QUnit.module('Readiness & Validity', function() {
+                QUnit.test('Fresh calculator starts pending with no results', function(assert) {
+                    const c = takeoffCalculator();
+                    c.calculate();
+                    assert.false(c.isReady, 'Runway data starts empty, so not ready');
+                    assert.strictEqual(c.validity, 'pending');
+                    assert.strictEqual(c.results.groundRoll, 0, 'No ground roll shown');
+                    assert.strictEqual(c.results.obstacle, 0, 'No obstacle distance shown');
+                    assert.strictEqual(c.warnings.length, 0, 'No warnings while pending');
+                });
+
+                QUnit.test('Wind direction is required only when there is wind', function(assert) {
+                    const c = ready(takeoffCalculator(), { windDirection: null });
+                    assert.true(c.isReady, 'Calm wind needs no direction');
+                    c.windSpeed_total = 5;
+                    assert.false(c.isReady, 'Wind above 0 kts requires a direction');
+                });
+
+                QUnit.test('Readiness rejects missing or out-of-range inputs', function(assert) {
+                    assert.false(ready(takeoffCalculator(), { temperature_c: null }).isReady, 'Missing temperature is pending');
+                    assert.false(ready(takeoffCalculator(), { elevation_ft: null }).isReady, 'Missing elevation is pending');
+                    assert.false(ready(takeoffCalculator(), { windSpeed_total: '' }).isReady, 'Cleared wind speed is pending, not calm');
+                    assert.false(ready(takeoffCalculator(), { windSpeed_total: -5 }).isReady, 'Negative wind speed is rejected');
+                    assert.false(ready(takeoffCalculator(), { runwayHeading: 400 }).isReady, 'Heading beyond 360 is rejected');
+                    assert.false(ready(takeoffCalculator(), { windSpeed_total: 10, windDirection: 400 }).isReady, 'Wind direction beyond 360 is rejected');
+                    assert.false(ready(takeoffCalculator(), { temperature_c: '' }).isReady, 'Cleared temperature is pending');
+
+                    const c = ready(takeoffCalculator(), { windSpeed_total: -5 });
+                    c.calculate();
+                    assert.strictEqual(c.wind_kts, 0, 'Negative wind never reaches the components');
+                    assert.strictEqual(c.results.groundRoll, 0, 'Not-ready input produces no distances');
+
+                    assert.true(ready(takeoffCalculator(), { windSpeed_total: '' }).windPending, 'Cleared wind speed shows the pending placeholder');
+                    assert.true(ready(takeoffCalculator(), { windSpeed_total: -5 }).windPending, 'Negative wind speed shows the pending placeholder');
+                    assert.false(ready(takeoffCalculator(), { windSpeed_total: 0 }).windPending, 'Calm 0 kts is a valid value, not pending');
+                });
+
+                QUnit.test('Validity states', function(assert) {
+                    let c = ready(takeoffCalculator());
+                    c.calculate();
+                    assert.strictEqual(c.validity, 'ok', 'Nominal ready conditions are within POH range');
+                    assert.ok(c.results.groundRoll > 0, 'Distances are computed');
+
+                    c = ready(takeoffCalculator(), { temperature_c: 50 });
+                    c.calculate();
+                    assert.strictEqual(c.validity, 'invalid', 'Temperature beyond the POH table invalidates');
+
+                    c = ready(takeoffCalculator(), { elevation_ft: 6000 });
+                    c.calculate();
+                    assert.strictEqual(c.validity, 'invalid', 'Elevation beyond the POH table invalidates');
+
+                    c = ready(takeoffCalculator(), { windDirection: 180, windSpeed_total: 10 });
+                    c.calculate();
+                    assert.strictEqual(c.validity, 'extrapolated', '10 kts tailwind is beyond the official wind table');
+                });
+
+                QUnit.test('Extrapolation is flagged on both sides of the table, and not inside it', function(assert) {
+                    // The test above only ever leaves the table downwind, which is half the
+                    // boundary. A mutation run found the other half: stop flagging the
+                    // headwind side and every assertion still passed, so a reading taken
+                    // from a row this project invented would have been presented as if it
+                    // came from the handbook. Runway 36 in ready(), so wind from 360 is a
+                    // headwind and wind from 180 a tailwind.
+                    const at = (dir, kts) => {
+                        const c = ready(takeoffCalculator(), { windDirection: dir, windSpeed_total: kts });
+                        c.calculate();
+                        return c;
+                    };
+                    assert.strictEqual(at(360, 20).validity, 'extrapolated', '20 kts of headwind is past the +12 kts row');
+                    assert.strictEqual(at(180, 20).validity, 'extrapolated', 'And 20 kts of tailwind is past the -6 kts row');
+                    // The limits belong to the published range: at the edge it is still a
+                    // reading, a knot past it is not.
+                    assert.strictEqual(at(360, 12).validity, 'ok', 'Exactly +12 kts is the last published row');
+                    assert.strictEqual(at(360, 13).validity, 'extrapolated', 'A knot past it is not');
+                    assert.strictEqual(at(180, 6).validity, 'ok', 'Exactly -6 kts is the first published row');
+                    assert.strictEqual(at(180, 7).validity, 'extrapolated', 'A knot past it is not');
+                });
+
+                QUnit.test('The validity check measures elevation in the same units as the calculation', function(assert) {
+                    // Both convert the entered feet to metres before comparing against the
+                    // table, and a mutation of the factor in one of them alone went
+                    // unnoticed. The two have to agree, or the label describes a different
+                    // elevation than the one the distances were computed at. The table ends
+                    // at 1500 m, which is 4921.26 ft.
+                    let c = ready(takeoffCalculator(), { elevation_ft: 4921 });
+                    c.calculate();
+                    assert.strictEqual(c.validity, 'ok', '4921 ft is 1499.9 m, the last metre inside the table');
+                    c = ready(takeoffCalculator(), { elevation_ft: 4925 });
+                    c.calculate();
+                    assert.strictEqual(c.validity, 'invalid', '4925 ft is 1501.1 m, and outside it');
+                });
+
+                QUnit.test('A runway with no length is not something to compute against', function(assert) {
+                    // isReady guards the whole verdict, and the length has to be positive
+                    // rather than merely present: a zero would produce a margin, a scale
+                    // drawing and two distances that look like an answer.
+                    for (const length of [0, -100]) {
+                        const c = ready(takeoffCalculator(), { runwayLength_m: length });
+                        c.calculate();
+                        assert.false(c.isReady, `${length} m of runway is not ready`);
+                        assert.strictEqual(c.validity, 'pending', 'So the verdict stays pending');
+                        assert.strictEqual(c.margin_m, null, 'And there is no margin to report');
+                    }
+                });
+
+                QUnit.test('Crosswind side', function(assert) {
+                    const c = takeoffCalculator();
+                    c.runwayHeading = 360; c.windSpeed_total = 10;
+                    c.windDirection = 90;
+                    c.calculateWindComponents();
+                    assert.strictEqual(c.crosswind_from, 'right', 'Wind from 090 on runway 36 comes from the right');
+                    c.windDirection = 270;
+                    c.calculateWindComponents();
+                    assert.strictEqual(c.crosswind_from, 'left', 'Wind from 270 on runway 36 comes from the left');
+                    c.windSpeed_total = 0;
+                    c.calculateWindComponents();
+                    assert.strictEqual(c.crosswind_from, null, 'Calm wind has no side');
+                });
+
+                QUnit.test('Runway designator hint', function(assert) {
+                    const c = takeoffCalculator();
+                    c.runwayHeading = 360;
+                    assert.strictEqual(c.runwayDesignator, '36');
+                    c.runwayHeading = 0;
+                    assert.strictEqual(c.runwayDesignator, '36');
+                    c.runwayHeading = 90;
+                    assert.strictEqual(c.runwayDesignator, '09');
+                    c.runwayHeading = 36;
+                    assert.strictEqual(c.runwayDesignator, '04', 'Typing 36 instead of 360 exposes the mistake');
+                    c.runwayHeading = null;
+                    assert.strictEqual(c.runwayDesignator, '');
+                });
+
+                QUnit.test('Runway margin sign', function(assert) {
+                    const c = ready(takeoffCalculator(), { runwayLength_m: 800, runwaySurface: 'paved' });
+                    c.calculate();
+                    assert.ok(Math.abs(c.margin_m - (800 - c.results.obstacle)) < 1e-9, 'Margin is available minus obstacle distance');
+                    assert.ok(c.margin_m > 0, 'Long runway leaves a positive margin');
+
+                    c.runwayLength_m = 200;
+                    c.calculate();
+                    assert.ok(c.margin_m < 0, 'Short runway leaves a negative margin');
+
+                    c.temperature_c = 50;
+                    c.calculate();
+                    assert.strictEqual(c.margin_m, null, 'Invalid calculation has no margin');
+                });
+            });
+
+            QUnit.module('Persistence', function(hooks) {
+                const KEY = 'flight_tools_takeoff_v1';
+                hooks.beforeEach(function() { localStorage.removeItem(KEY); });
+                hooks.afterEach(function() { localStorage.removeItem(KEY); });
+
+                // Persistence only runs when $watch exists (Alpine context); the stub
+                // opts a plain factory instance in.
+                function persistent(c) { c.$watch = function() {}; return c; }
+
+                QUnit.test('Saves and restores the session', function(assert) {
+                    const a = persistent(ready(takeoffCalculator(), { runwayLength_m: 800, temperature_c: 25, runwaySurface: 'paved' }));
+                    a.saveState();
+                    assert.ok(localStorage.getItem(KEY), 'State written to storage');
+
+                    const b = persistent(takeoffCalculator());
+                    b.restoreState();
+                    b.calculate();
+                    assert.strictEqual(b.runwayLength_m, 800);
+                    assert.strictEqual(b.temperature_c, 25);
+                    assert.strictEqual(b.runwaySurface, 'paved');
+                    assert.true(b.isReady, 'Restored session is ready');
+                    assert.ok(b.results.groundRoll > 0, 'Distances recomputed');
+                    assert.strictEqual(b.savedAt, a.savedAt, 'savedAt restored, not refreshed');
+                });
+
+                QUnit.test('Corrupt or unknown payloads are ignored', function(assert) {
+                    localStorage.setItem(KEY, 'not json');
+                    let c = persistent(takeoffCalculator());
+                    c.restoreState();
+                    assert.strictEqual(c.runwayLength_m, null, 'Corrupt JSON leaves defaults');
+                    assert.strictEqual(c.savedAt, null);
+
+                    localStorage.setItem(KEY, JSON.stringify({ v: 99, savedAt: 1, state: { runwayLength_m: 800 } }));
+                    c = persistent(takeoffCalculator());
+                    c.restoreState();
+                    assert.strictEqual(c.runwayLength_m, null, 'Unknown version leaves defaults');
+                });
+
+                QUnit.test('Invalid values inside the payload are skipped', function(assert) {
+                    localStorage.setItem(KEY, JSON.stringify({
+                        v: 1, savedAt: Date.now(),
+                        state: { runwayLength_m: 900, runwaySurface: 'water', windSpeed_total: -5, units: 'nautical', runwayHeading: 999 }
+                    }));
+                    const c = persistent(takeoffCalculator());
+                    c.restoreState();
+                    assert.strictEqual(c.runwayLength_m, 900, 'Valid key applied');
+                    assert.strictEqual(c.runwaySurface, null, 'Unknown surface skipped');
+                    assert.strictEqual(c.windSpeed_total, 0, 'Negative wind skipped');
+                    assert.strictEqual(c.units, 'metric', 'Unknown units skipped');
+                    assert.strictEqual(c.runwayHeading, null, 'Out-of-range heading skipped');
+                });
+
+                QUnit.test('reset() clears storage and flight data but keeps preferences', function(assert) {
+                    const c = persistent(ready(takeoffCalculator()));
+                    c.lang = 'en';
+                    c.units = 'imperial';
+                    c.saveState();
+                    assert.ok(localStorage.getItem(KEY));
+
+                    c.reset();
+                    assert.strictEqual(localStorage.getItem(KEY), null, 'Storage cleared');
+                    assert.strictEqual(c.runwayLength_m, null);
+                    assert.strictEqual(c.runwayHeading, null);
+                    assert.strictEqual(c.runwaySurface, null);
+                    assert.strictEqual(c.savedAt, null);
+                    assert.false(c.isReady, 'Back to pending');
+                    assert.strictEqual(c.lang, 'en', 'Language preference kept');
+                    assert.strictEqual(c.units, 'imperial', 'Units preference kept');
+                });
+
+                QUnit.test('Language changes persist without refreshing the age clock', function(assert) {
+                    const c = persistent(ready(takeoffCalculator()));
+                    c.saveState();
+                    c.savedAt = 12345;
+                    c.setLang('en');
+                    assert.strictEqual(c.savedAt, 12345, 'setLang does not touch savedAt');
+                    const stored = JSON.parse(localStorage.getItem(KEY));
+                    assert.strictEqual(stored.state.lang, 'en', 'Language still persisted');
+                    assert.strictEqual(stored.savedAt, 12345, 'Stored savedAt untouched');
+                });
+
+                QUnit.test('formatAge labels', function(assert) {
+                    const c = takeoffCalculator();
+                    assert.strictEqual(c.formatAge(30 * 1000), 'Ingresaste datos recién');
+                    assert.strictEqual(c.formatAge(5 * 60 * 1000), 'Ingresaste datos por última vez hace 5 min');
+                    assert.strictEqual(c.formatAge(3 * 3600 * 1000), 'Ingresaste datos por última vez hace 3 h');
+                    assert.strictEqual(c.formatAge(24 * 3600 * 1000), 'Ingresaste datos por última vez hace 1 día');
+                    assert.strictEqual(c.formatAge(2 * 24 * 3600 * 1000), 'Ingresaste datos por última vez hace 2 días');
+                    c.lang = 'en';
+                    assert.strictEqual(c.formatAge(5 * 60 * 1000), 'You last entered data 5 min ago');
+                    assert.strictEqual(c.formatAge(24 * 3600 * 1000), 'You last entered data 1 day ago');
+                    assert.strictEqual(c.formatAge(2 * 24 * 3600 * 1000), 'You last entered data 2 days ago');
+                });
+
+                QUnit.test('Persistence stays inert without Alpine', function(assert) {
+                    const c = ready(takeoffCalculator());
+                    c.saveState();
+                    assert.strictEqual(localStorage.getItem(KEY), null, 'Plain instances never write');
+
+                    localStorage.setItem(KEY, JSON.stringify({ v: 1, savedAt: 1, state: { runwayLength_m: 700 } }));
+                    const d = ready(takeoffCalculator());
+                    d.restoreState();
+                    assert.strictEqual(d.runwayLength_m, 1235, 'Plain instances never read');
+                });
+            });
+        }
+    })();
+    </script>
+</body>
+</html>

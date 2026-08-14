@@ -1,0 +1,373 @@
+{
+  "schema": 1,
+  "_comment": "Written by verification/run_mutations.py. The two hashes below are of the files this result was measured over; run_mutations.py --check compares them against the files on disk, so a result that has gone stale says so instead of standing there looking current.",
+  "source_sha256": "86c4c478da9f7952ffca6e03672f6ede31baee34d2d4ee862b5db0eeff6f5ac5",
+  "mutations_sha256": "868c9a73bccd0b19caa23559d598c5c4730b7d00bf17aad1ac330c43435079bc",
+  "suite_assertions": 166,
+  "assertions_per_layer": {
+    "examples": 72,
+    "poh": 13,
+    "windtable": 21,
+    "invariants": 10,
+    "validity": 50
+  },
+  "mutations": 37,
+  "escaped": [],
+  "results": [
+    {
+      "id": "C01",
+      "category": "constant",
+      "description": "Base ground roll 170 -> 175 m",
+      "caught_by": [
+        "examples",
+        "poh"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "C02",
+      "category": "constant",
+      "description": "Base obstacle distance 265 -> 275 m",
+      "caught_by": [
+        "examples",
+        "poh"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "C03",
+      "category": "constant",
+      "description": "Elevation table, 500 m ground roll 213 -> 218",
+      "caught_by": [
+        "examples",
+        "poh"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "C04",
+      "category": "constant",
+      "description": "Elevation table, 1000 m obstacle 395 -> 385",
+      "caught_by": [
+        "poh"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "C05",
+      "category": "constant",
+      "description": "Elevation table, 1500 m ground roll 332 -> 322",
+      "caught_by": [
+        "poh"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "C06",
+      "category": "constant",
+      "description": "Temperature table, 0 C ground roll 140 -> 145",
+      "caught_by": [
+        "poh"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "C07",
+      "category": "constant",
+      "description": "Temperature table, 15 C ground roll 170 -> 172",
+      "caught_by": [
+        "examples",
+        "poh"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "C08",
+      "category": "constant",
+      "description": "Temperature table, 25 C obstacle 320 -> 330",
+      "caught_by": [
+        "poh"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "C09",
+      "category": "constant",
+      "description": "Temperature table, 40 C ground roll 317 -> 307",
+      "caught_by": [
+        "poh",
+        "invariants"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "C10",
+      "category": "constant",
+      "description": "Wind table, calm ground roll 555 -> 550 ft",
+      "caught_by": [
+        "examples",
+        "poh",
+        "windtable"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "C11",
+      "category": "constant",
+      "description": "Wind table, calm obstacle 870 -> 880 ft",
+      "caught_by": [
+        "examples",
+        "poh",
+        "windtable"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "C12",
+      "category": "constant",
+      "description": "Wind table, 6 kt tailwind ground roll 680 -> 670 ft",
+      "caught_by": [
+        "examples",
+        "poh",
+        "windtable"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "C13",
+      "category": "constant",
+      "description": "Wind table, 4 kt headwind ground roll 525 -> 520 ft",
+      "caught_by": [
+        "poh",
+        "windtable"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "C14",
+      "category": "constant",
+      "description": "Wind table, 12 kt headwind obstacle 720 -> 730 ft",
+      "caught_by": [
+        "examples",
+        "poh",
+        "windtable"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "C15",
+      "category": "constant",
+      "description": "Extrapolated 40 kt tailwind ground roll 1400 -> 1300 ft",
+      "caught_by": [
+        "windtable"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "C16",
+      "category": "constant",
+      "description": "Extrapolated 40 kt headwind obstacle 563 -> 553 ft",
+      "caught_by": [
+        "windtable"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "F01",
+      "category": "constant",
+      "description": "Safety margin 1.10 -> 1.05",
+      "caught_by": [
+        "examples",
+        "poh"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "F02",
+      "category": "constant",
+      "description": "Grass surface factor 1.20 -> 1.15",
+      "caught_by": [
+        "poh"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "F03",
+      "category": "constant",
+      "description": "Crosswind penalty 10 % -> 8 % per 5 kts",
+      "caught_by": [
+        "examples",
+        "poh"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "F04",
+      "category": "constant",
+      "description": "Crosswind penalty per 5 kts -> per 10 kts",
+      "caught_by": [
+        "examples",
+        "poh"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "L01",
+      "category": "constant",
+      "description": "POH wind table lower limit -6 -> -8 kts",
+      "caught_by": [
+        "poh",
+        "validity"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "L02",
+      "category": "constant",
+      "description": "POH wind table upper limit 12 -> 15 kts",
+      "caught_by": [
+        "poh",
+        "validity"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "G01",
+      "category": "logic",
+      "description": "Crosswind rounded down instead of up",
+      "caught_by": [
+        "poh"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "G02",
+      "category": "logic",
+      "description": "Obstacle distance uses the ground roll wind factor",
+      "caught_by": [
+        "examples"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "G03",
+      "category": "logic",
+      "description": "Runway margin sign inverted",
+      "caught_by": [
+        "validity"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "G04",
+      "category": "logic",
+      "description": "Runway margin measured against the ground roll, not the obstacle",
+      "caught_by": [
+        "validity"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "G05",
+      "category": "logic",
+      "description": "Feet to metres factor 0.3048 -> 0.348 in the calculation",
+      "caught_by": [
+        "examples"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "G07",
+      "category": "logic",
+      "description": "Feet to metres factor wrong in the validity check only",
+      "caught_by": [
+        "validity"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "G06",
+      "category": "logic",
+      "description": "Wind direction converted with the wrong half turn",
+      "caught_by": [
+        "examples",
+        "poh",
+        "invariants",
+        "validity"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "P01",
+      "category": "permissive",
+      "description": "Temperature out of table no longer invalidates",
+      "caught_by": [
+        "validity"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "P02",
+      "category": "permissive",
+      "description": "Out of table check removed outright",
+      "caught_by": [
+        "validity"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "P03",
+      "category": "permissive",
+      "description": "Extrapolated wind no longer flagged",
+      "caught_by": [
+        "validity"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "P04",
+      "category": "permissive",
+      "description": "Extrapolated flagged on the tailwind side only",
+      "caught_by": [
+        "validity"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "P05",
+      "category": "permissive",
+      "description": "A runway of zero length counts as ready",
+      "caught_by": [
+        "validity"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "P06",
+      "category": "permissive",
+      "description": "Temperature no longer required to be ready",
+      "caught_by": [
+        "validity"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "P07",
+      "category": "permissive",
+      "description": "Runway margin reported even on an invalid calculation",
+      "caught_by": [
+        "validity"
+      ],
+      "escapes": false
+    },
+    {
+      "id": "P08",
+      "category": "permissive",
+      "description": "Negative wind speed no longer counts as pending",
+      "caught_by": [
+        "validity"
+      ],
+      "escapes": false
+    }
+  ]
+}

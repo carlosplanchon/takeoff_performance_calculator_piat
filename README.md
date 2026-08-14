@@ -1,153 +1,171 @@
 # Takeoff Performance Calculator - Pipistrel ALPHA Trainer
 
+[![Tests](https://github.com/carlosplanchon/takeoff-performance-calculator-piat/actions/workflows/tests.yml/badge.svg)](https://github.com/carlosplanchon/takeoff-performance-calculator-piat/actions/workflows/tests.yml)
 ![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)
 
-An interactive and visual web-based calculator to estimate the takeoff performance of the **Pipistrel ALPHA Trainer (LSA)** aircraft.
+![Cockpit view of a Pipistrel ALPHA Trainer on the takeoff roll, looking down the runway over the instrument panel](assets/banner.jpg)
 
-![Screenshot of the Takeoff Performance Calculator interface](webapp_screenshot.png)
+<sub>Taking off from runway 13 at Colonia (SUCA), Uruguay. Photo by Carlos A. Planchón, Aero Club Mercedes. © 2026 Carlos A. Planchón, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).</sub>
+
+*Unofficial open-source project. Not affiliated with or endorsed by Pipistrel.
+Always refer to current approved aircraft documentation for operational use.*
+
+A self-contained, browser-based takeoff performance calculator for the
+**Pipistrel ALPHA Trainer (LSA)**. It estimates the ground roll and the distance
+to clear a 50 ft obstacle from elevation, temperature, wind and runway surface,
+resolves the wind into its headwind and crosswind components from the runway
+heading, and compares the result against the runway you actually have.
 
 ---
 
-> ⚠️ **IMPORTANT DISCLAIMER & WARNING**
+> **IMPORTANT DISCLAIMER AND WARNING**
 >
 > This calculator is an **educational and demonstrational tool only**. **DO NOT USE IT FOR REAL-WORLD FLIGHT PLANNING.**
 >
-> This is an **unofficial, third-party tool**. The author is not affiliated with, endorsed by, or sponsored by Pipistrel or its parent company, Textron Aviation.
+> **SAFETY WARNING**: misusing takeoff performance tools can contribute to accidents resulting in serious injury or death, and/or property damage.
 >
-> The calculations are based on performance data from the following specific document:
-> - **Document No.:** POH-162-00-40-001
-> - **Revision:** A07
-> - **Date of Issue:** June 5th, 2024
+> The calculations are based on **POH-162-00-40-001, rev. A07** (ALPHA Trainer), sections 5.3 and 5.6. The ALPHA Trainer PRO is a different type with its own handbook and is **not** covered here.
 >
-> Always consult the official and current **Pilot's Operating Handbook (POH)** for your specific aircraft for accurate and authoritative performance data. **Any questions regarding the application of these calculations or the use of this tool in a training context should be directed to a qualified Certified Flight Instructor (CFI).**
+> Always consult the official and current **Pilot's Operating Handbook (POH)** for your specific aircraft for accurate and authoritative performance data. **Any question about applying these calculations, or about using this tool in a training context, should be directed to a qualified and properly rated flight instructor.**
 >
-> The author assumes no liability for any decisions made or actions taken based on the use of this tool.
+> The author assumes no liability for any decision made or action taken based on the use of this tool.
 
 ---
 
-## ✨ Key Features
+![The calculator with a takeoff computed, showing the ground roll and obstacle distances against the available runway](assets/screenshot.png)
 
-*   **📊 Interactive Graph:** Visualize the ground roll, 50 ft obstacle clearance distance, and available runway length in a real-time updating graphical representation.
-*   **🌐 Bilingual Support:** The interface is available in both English and Spanish, with automatic browser language detection.
-*   **🔢 Flexible Inputs:** Adjust all key variables: elevation, temperature, headwind/tailwind, crosswind, and runway surface type.
-*   **📏 Imperial & Metric Units:** Switch between unit systems with a single click.
-*   **🔬 Calculation Breakdown:** Understand how the final result is achieved with a detailed section showing each step of the calculation, from the base distance to adjustments for density, wind, and surface.
-*   **📱 Responsive Design:** Fully functional on both desktop and mobile devices.
-*   **🚀 Self-Contained:** Built with a lightweight stack that runs entirely in the browser, with no server-side processing or external production dependencies.
+## Key Features
 
-## 🛠️ Tech Stack
+*   **Wind resolved from the runway heading:** you enter where the wind comes from and how hard it blows, not a headwind figure you worked out yourself. The tool derives the headwind or tailwind component and the crosswind, and says which side the crosswind is from.
+*   **Says when it is extrapolating:** the handbook wind table runs from 6 kt of tailwind to 12 kt of headwind. Past that the tool keeps calculating and labels the result *extrapolated*, and beyond the temperature or elevation tables it refuses the result outright rather than clamping to the table edge and looking precise.
+*   **Pending is not zero:** every input starts empty. No preloaded 15 °C that looks confirmed without being confirmed, and no verdict until the inputs that matter are in.
+*   **The runway is part of the answer:** the margin against the runway you entered is shown with the distances, on a scale drawing, so the number that matters is the difference rather than the distance on its own.
+*   **Every step visible:** the breakdown shows the base distance, the temperature and elevation corrections, the safety margin, and each factor applied, so the result can be followed back to the handbook.
+*   **Bilingual:** English and Spanish.
+*   **Imperial and metric:** switchable, with the conversion leaving pending fields pending.
+*   **Session persistence:** the last session is restored from localStorage and labelled with its age.
+*   **Self-contained:** no build step, no server, no external dependency at runtime. Every asset is vendored in `assets/`.
 
-*   **HTML5** (Semantic)
-*   **[Tailwind CSS](https://tailwindcss.com/)** for rapid, modern UI development.
-*   **[Alpine.js](https://alpinejs.dev/)** for UI reactivity and application logic.
+## Tech Stack
 
-## ⚙️ How It Works (The Calculation Logic)
+*   **HTML5** (semantic)
+*   **[Tailwind CSS](https://tailwindcss.com/)** for the UI, built locally and vendored.
+*   **[Alpine.js](https://alpinejs.dev/)** for reactivity and application logic.
 
-The calculation is based on the interpolation method from the performance charts found in the Pipistrel ALPHA Trainer POH. The process is as follows:
+## Running Locally
 
-1.  **Base Distance (Lo):** Starts with the standard distance at Sea Level (SL) and 15°C (ISA).
-2.  **Density Correction:**
-    *   Interpolates the distance for the current **temperature** at sea level (Lt).
-    *   Interpolates the distance for the current **elevation** at 15°C (Lh).
-    *   Combines these effects (`Lh + Lt - Lo`) to get the density altitude-corrected distance.
-3.  **Safety Margin:** A 10% safety margin is applied to the density-corrected distance.
-4.  **Wind Adjustment:** A fixed distance is added or subtracted based on the headwind or tailwind component.
-5.  **Correction Factors:** The result is then multiplied by factors for:
-    *   **Runway Surface** (+20% for grass/soft field).
-    *   **Crosswind** (+10% for every 5 knots of crosswind).
-6.  **Final Result:** The final ground roll and 50 ft / 15 m obstacle clearance distances are displayed.
-
-## 🚀 Running Locally
-
-No build process is required. Simply clone or download the repository and open the `index.html` file in your web browser.
+No build process is required.
 
 ```bash
-# Clone the repository
-git clone https://github.com/carlosplanchon/takeoff_performance_piat.git
-
-# Navigate to the directory
-cd takeoff_performance_piat
-
-# Open the index.html file in your preferred browser
+git clone https://github.com/carlosplanchon/takeoff-performance-calculator-piat.git
+cd takeoff-performance-calculator-piat
 ```
 
-## 🧪 Testing
+Then open `index.html` in your browser. Nothing is fetched at runtime, so opening
+the file directly works; a local server is only needed for the test suite:
 
-The project includes an in-browser test suite using **[QUnit](https://qunitjs.com/)** to verify the calculation logic.
+```bash
+python3 -m http.server 8000
+# http://127.0.0.1:8000/index.html
+```
 
-### How to Run the Tests
+## Testing
 
-The test suite is disabled by default for a clean user experience. To activate it, open the `index.html` file in your browser and add the `?test=true` parameter to the URL.
+The project has an in-browser test suite using **[QUnit](https://qunitjs.com/)**,
+disabled by default. To run it, open `index.html` with the `?test=true`
+parameter:
 
-**Example URL:**
-`file:///path/to/your/project/index.html?test=true`
+```
+http://127.0.0.1:8000/index.html?test=true
+```
 
-This will display the QUnit test runner at the bottom of the page, showing the results of all test cases.
+Headless, the same way CI runs it:
 
-![Screenshot of the QUnit test runner](qunit_screenshot.png)
+```bash
+./run_tests.sh
+```
 
-### Current Test Coverage
+It serves the directory on an ephemeral port, loads the suite in headless
+Chromium and exits non-zero if any assertion fails or the page never reports
+results.
 
-The existing test suite validates several key areas of the application to ensure reliability and correctness:
+[VERIFICATION.md](VERIFICATION.md) records what has been checked, how, and what
+that does and does not establish. It reports a mutation experiment measuring
+what the suite would actually catch, and that experiment ships with the
+repository rather than being quoted at you:
 
-1.  **Core Calculation Logic:** This is the most critical set of tests, covering different operational scenarios to verify the accuracy of the performance calculations. The current scenarios are:
-    *   **Standard Conditions (ISA):** Checks the baseline performance at Sea Level, 15°C, with a paved runway and no wind. This validates that the base POH numbers and the safety margin are applied correctly.
-    *   **Adverse Conditions:** Simulates a challenging "High and Hot" scenario with high elevation, high temperature, a tailwind, a crosswind, and a grass runway. This tests the combined effect of all negative performance factors.
-    *   **Favorable Conditions:** Verifies that a strong headwind correctly reduces the calculated takeoff distances, ensuring that positive performance factors are also handled properly.
+```bash
+python3 verification/run_mutations.py
+```
 
-2.  **Edge Cases and POH Limits:** This module ensures the calculator behaves safely and predictably when user inputs approach or exceed the limits of the data provided in the POH.
-    *   **Out-of-Bounds Warnings:** Confirms that a clear warning message is generated and displayed if the user selects a temperature or elevation outside the valid range specified in the POH tables.
-    *   **Multiple Warnings:** Checks that the system can handle and display several warnings simultaneously if multiple inputs are out of bounds.
-    *   **Valid Conditions:** Ensures that no warnings are displayed when all inputs are within the valid POH range.
+It introduces 37 deliberate defects one at a time and reports which part of the
+suite catches each. The defects are in `verification/mutations.json` and the
+recorded outcome in `verification/results.json`, which carries the SHA-256 of
+the files it was measured over. CI checks that hash on every push, so a recorded
+result cannot quietly drift away from the code it describes:
 
-3.  **Helper Functions & Unit Conversions (Implicit):** The tests implicitly validate foundational functions by relying on them for the main calculations. This includes:
-    *   `interpolate()`: The core function for reading values from the performance charts.
-    *   Unit Conversion Getters/Setters: The correct conversion between metric and imperial units for temperature and elevation is indirectly verified through the setup of the test scenarios.
+```bash
+python3 verification/run_mutations.py --check   # milliseconds, not minutes
+```
 
-This structured testing approach ensures that the main logic is not only mathematically correct according to the POH methodology but also that the user interface provides appropriate feedback for safe and responsible use.
+### What the suite covers
 
-### How to Add a New Test Scenario
+*   **POH source data** (sections 5.3 and 5.6): every figure in the code is
+    written out again against the handbook it comes from, so editing a table cell
+    without editing the check fails the suite.
+*   **The wind table**: how a reading between two rows is interpolated, and what
+    happens past the ends of the published range.
+*   **Wind components**: the headwind, tailwind and crosswind derived from the
+    runway heading and the wind direction, including which side the crosswind is
+    from.
+*   **Deterministic grid sweeps** across the supported ranges and their
+    boundaries, pinning down relationships the calculation has to obey rather
+    than single worked examples.
+*   **Readiness and validity**: what counts as enough input to produce a verdict,
+    and when the result is labelled extrapolated or refused outright.
+*   **Persistence**: restoring a session, and corrupt payloads being ignored.
 
-Contributions to expand test coverage are highly encouraged. To add a new test scenario:
+## Updating the vendored dependencies
 
-1.  **Locate the Test Suite:** Open `index.html` and find the `<script id="test-suite-script">` tag at the end of the `<body>`.
-2.  **Find the Module:** Inside the `runTests()` function, locate the `QUnit.module('Core Calculation Logic', ...)` block.
-3.  **Add a New `QUnit.test`:** Copy an existing test case or create a new one following this template:
+Each dependency has a script that downloads it through npm (which verifies
+sha512 integrity) and rewrites the references in `index.html`. None of them
+commit anything.
 
-    ```javascript
-    QUnit.test('Scenario: [Your New Scenario Description]', function(assert) {
-        // 1. Set the conditions for your scenario
-        this.calculator.elevation_ft = ...;
-        this.calculator.temperature_c = ...;
-        this.calculator.wind_kts = ...; // Use negative for tailwind
-        this.calculator.crosswind_kts = ...;
-        this.calculator.runwaySurface = 'paved' or 'grass';
+```bash
+./update_alpine.sh        # Alpine.js
+./update_qunit.sh         # QUnit
+./update_playwright.sh    # the CI Chromium pin
+./generate_styles.sh      # rebuild assets/tailwind.css and stamp its hash
+./run_tests.sh            # then check it is still green
+```
 
-        // 2. Execute the calculation
-        this.calculator.calculate();
+## Related
 
-        // 3. Define the expected results
-        // It's highly recommended to calculate this manually first based on the POH
-        // to validate the code against an external source of truth.
-        const expectedGroundRoll = ...;
-        const expectedObstacle = ...;
+**[Weight and Balance Calculator](https://github.com/carlosplanchon/weight-and-balance-calculator-piat)**,
+the sibling tool for the same aircraft. It computes the takeoff and landing CG,
+checks both against the envelope, and reads each aircraft's empty weight and arm
+from its own approved documentation.
 
-        // 4. Assert that the results are within an acceptable tolerance
-        assert.ok(Math.abs(this.calculator.results.groundRoll - expectedGroundRoll) < 1, 'Validation message for ground roll');
-        assert.ok(Math.abs(this.calculator.results.obstacle - expectedObstacle) < 1, 'Validation message for obstacle distance');
-    });
-    ```
+## Contributing
 
-4.  **Verify:** Save the `index.html` file and reload your browser with the `?test=true` parameter to see your new test run.
+Contributions are welcome. If you find a bug or have a suggestion, open an
+*Issue* or a *Pull Request*.
 
+## License
 
-## 🤝 Contributing
+The source code is distributed under the Apache License 2.0. See the `LICENSE`
+file.
 
-Contributions are welcome! If you find a bug, have a suggestion for improvement, please open an *Issue* or submit a *Pull Request*.
+Two things in this repository are not covered by it. The vendored dependencies in
+`assets/` keep their own licenses, set out in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The banner photograph in
+`assets/banner.jpg` is by the same author as the code but under a different
+license: **CC BY 4.0**, which asks for the credit above to travel with the image
+wherever it goes, including inside a copy of this project. Apache 2.0 asks for
+no such thing, so the two cannot be assumed to be interchangeable.
 
-## 📄 License
-
-This project is distributed under the Apache License 2.0. See the `LICENSE` file for more information.
+Pipistrel and Textron Aviation are trademarks of their respective holders.
+No rights to those trademarks are granted by this project.
 
 ---
 *Made with ♥️ in Dolores, Soriano, Uruguay.*

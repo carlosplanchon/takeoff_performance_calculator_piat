@@ -1,0 +1,8 @@
+# ---> Node
+node_modules/
+
+# ---> Python
+# The calculator needs none, but the mutation harness in verification/ is a
+# Python script, so byte-compiling or importing it leaves these behind.
+__pycache__/
+*.py[cod]
