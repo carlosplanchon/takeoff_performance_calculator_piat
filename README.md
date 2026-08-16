@@ -37,7 +37,7 @@ heading, and compares the result against the runway you actually have.
 ## Key Features
 
 *   **Wind resolved from the runway heading:** you enter where the wind comes from and how hard it blows, not a headwind figure you worked out yourself. The tool derives the headwind or tailwind component and the crosswind, and says which side the crosswind is from.
-*   **Says when it is extrapolating:** the handbook wind table runs from 6 kt of tailwind to 12 kt of headwind. Past that the tool keeps calculating and labels the result *extrapolated*, and beyond the temperature or elevation tables it refuses the result outright rather than clamping to the table edge and looking precise.
+*   **Says when it is extrapolating:** past the ends of the published wind table, which runs from 6 kt of tailwind to 12 kt of headwind, the project defines two additional rows that are not handbook data. Both are deliberately conservative, and any result that depends on them is labelled *extrapolated*. Beyond the temperature or elevation tables the tool refuses the result outright rather than clamping to the table edge and looking precise.
 *   **Pending is not zero:** every input starts empty. No preloaded 15 °C that looks confirmed without being confirmed, and no verdict until the inputs that matter are in.
 *   **The runway is part of the answer:** the margin against the runway you entered is shown with the distances, on a scale drawing, so the number that matters is the difference rather than the distance on its own.
 *   **Every step visible:** the breakdown shows the base distance, the temperature and elevation corrections, the safety margin, and each factor applied, so the result can be followed back to the handbook.
