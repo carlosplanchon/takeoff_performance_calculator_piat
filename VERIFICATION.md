@@ -30,10 +30,12 @@ boilerplate: it follows from what is written below.
 
 ## Where the figures come from
 
-One document, for one type: **POH-162-00-40-001, rev. A07**, for the Pipistrel
-ALPHA Trainer. Section 5.6 for the takeoff distances against temperature and
-elevation, section 5.3 for the wind table. The ALPHA Trainer PRO is a different
-type with its own handbook and is not covered here.
+One document: **POH-162-00-40-001, rev. A07**, for the Pipistrel ALPHA
+Trainer. Section 5.6 for the takeoff distances against temperature and
+elevation, section 5.3 for the wind table. The ALPHA Trainer PRO (162A) has
+its own handbook, POH-162-00-40-003, which nothing here is checked against;
+every figure in this project traces to rev. A07 above and to no other
+document.
 
 **Those tables are published for one weight: MTOM, 550 kg.** The handbook states
 it as a condition of the figures, and this calculator inherits it whole. It asks

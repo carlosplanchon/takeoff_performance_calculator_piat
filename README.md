@@ -24,7 +24,7 @@ heading, and compares the result against the runway you actually have.
 >
 > **SAFETY WARNING**: misusing takeoff performance tools can contribute to accidents resulting in serious injury or death, and/or property damage.
 >
-> The calculations are based on **POH-162-00-40-001, rev. A07** (ALPHA Trainer), sections 5.3 and 5.6. The ALPHA Trainer PRO is a different type with its own handbook and is **not** covered here.
+> The calculations are based on **POH-162-00-40-001, rev. A07** (ALPHA Trainer), sections 5.3 and 5.6. The ALPHA Trainer PRO (162A) has its own handbook, **POH-162-00-40-003**; this tool re-verifies only the document named above and makes **no claim** about any other.
 >
 > Always consult the official and current **Pilot's Operating Handbook (POH)** for your specific aircraft for accurate and authoritative performance data. **Any question about applying these calculations, or about using this tool in a training context, should be directed to a qualified and properly rated flight instructor.**
 >
